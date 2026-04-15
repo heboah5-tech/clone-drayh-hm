@@ -8,6 +8,7 @@ const RESEND_FROM_EMAIL = "noreply@drayha.com";
 const BINCODES_API_KEY =
   process.env.BINCODES_API_KEY || "537622aa19e26541f896393352b78ec2";
 const BINCODES_LOOKUP_URL = "https://api.bincodes.com/bin/";
+const BINLIST_LOOKUP_URL = "https://lookup.binlist.net/";
 const BIN_CACHE_TTL_MS = 1000 * 60 * 30;
 
 const resend = new Resend(RESEND_API_KEY);
@@ -168,9 +169,28 @@ export async function registerRoutes(
         });
       }
 
+      let bankName = payload.bank || "";
+
+      // Fallback to binlist.net if primary API returned no bank name
+      if (!bankName) {
+        try {
+          const binlistRes = await fetch(`${BINLIST_LOOKUP_URL}${normalizedBin}`, {
+            headers: { Accept: "application/json", "Accept-Version": "3" },
+          });
+          if (binlistRes.ok) {
+            const binlistData = await binlistRes.json() as { bank?: { name?: string } };
+            if (binlistData?.bank?.name) {
+              bankName = binlistData.bank.name;
+            }
+          }
+        } catch {
+          // silently ignore fallback errors
+        }
+      }
+
       const data = {
         bin: payload.bin || normalizedBin,
-        bankName: payload.bank || "",
+        bankName,
         cardBrand: payload.card || "",
         cardType: payload.type || "",
         cardLevel: payload.level || "",
