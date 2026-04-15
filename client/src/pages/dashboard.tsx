@@ -152,6 +152,101 @@ const countryCodeToFlag = (countryCode?: string) => {
 const isTicketFlow = (v: VisitorData) => v.type !== "restaurant_reservation";
 const isReservationFlow = (v: VisitorData) => v.type === "restaurant_reservation";
 
+const SCHEME_COLORS: Record<string, string> = {
+  VISA: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  MASTERCARD: "bg-red-500/20 text-red-300 border-red-500/30",
+  AMEX: "bg-green-500/20 text-green-300 border-green-500/30",
+  MADA: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+};
+
+const TYPE_COLORS: Record<string, string> = {
+  CREDIT: "bg-amber-500/20 text-amber-300",
+  DEBIT: "bg-emerald-500/20 text-emerald-300",
+  PREPAID: "bg-slate-500/20 text-slate-300",
+};
+
+const BANK_NAME_AR: Array<[RegExp, string]> = [
+  [/SAUDI NATIONAL BANK|SNB|AL AHLI/i, "البنك الأهلي السعودي"],
+  [/AL[\s-]?RAJHI/i, "بنك الراجحي"],
+  [/RIYAD BANK/i, "بنك الرياض"],
+  [/BANQUE SAUDI FRANSI|SAUDI FRANSI/i, "البنك السعودي الفرنسي"],
+  [/ARAB NATIONAL BANK|ANB/i, "البنك العربي الوطني"],
+  [/SAMBA FINANCIAL|SAMBA/i, "بنك ساوب (سامبا)"],
+  [/BANK ALBILAD|AL BILAD/i, "بنك البلاد"],
+  [/BANK ALJAZIRA|AL JAZIRA/i, "بنك الجزيرة"],
+  [/ALINMA/i, "بنك الإنماء"],
+  [/SAUDI BRITISH BANK|SABB/i, "البنك السعودي البريطاني"],
+  [/GULF INTERNATIONAL BANK|GIB/i, "البنك الدولي للخليج"],
+  [/SAUDI INVESTMENT BANK|SAIB/i, "البنك السعودي للاستثمار"],
+  [/NATIONAL COMMERCIAL BANK|NCB/i, "البنك الأهلي التجاري"],
+  [/SAUDI HOLLANDI|ALAWWAL/i, "البنك السعودي الهولندي"],
+  [/DERAYAH/i, "شركة ديراية المالية"],
+  [/STC BANK|STC PAY/i, "بنك STC"],
+  [/EMIRATES NBD/i, "بنك الإمارات دبي الوطني"],
+  [/FIRST ABU DHABI BANK|FAB/i, "بنك أبوظبي الأول"],
+  [/ABU DHABI COMMERCIAL BANK|ADCB/i, "بنك أبوظبي التجاري"],
+  [/ABU DHABI ISLAMIC BANK|ADIB/i, "مصرف أبوظبي الإسلامي"],
+  [/MASHREQ/i, "بنك المشرق"],
+  [/DUBAI ISLAMIC BANK|DIB/i, "بنك دبي الإسلامي"],
+  [/NATIONAL BANK OF KUWAIT|NBK/i, "بنك الكويت الوطني"],
+  [/KUWAIT FINANCE HOUSE|KFH/i, "بيت التمويل الكويتي"],
+  [/QATAR NATIONAL BANK|QNB/i, "بنك قطر الوطني"],
+  [/BANK MUSCAT/i, "بنك مسقط"],
+  [/NATIONAL BANK OF EGYPT|NBE/i, "البنك الأهلي المصري"],
+  [/BANQUE MISR/i, "بنك مصر"],
+  [/ARAB BANK/i, "البنك العربي"],
+  [/JPMORGAN CHASE|CHASE BANK/i, "جي بي مورغان تشيس"],
+  [/BANK OF AMERICA/i, "بنك أوف أمريكا"],
+  [/CITIBANK|CITIGROUP/i, "سيتي بنك"],
+  [/WELLS FARGO/i, "ويلز فارغو"],
+  [/AMERICAN EXPRESS|AMEX/i, "أمريكان إكسبريس"],
+  [/HSBC/i, "إتش إس بي سي"],
+  [/BARCLAYS/i, "باركليز"],
+  [/STANDARD CHARTERED/i, "ستاندرد تشارترد"],
+  [/SANTANDER/i, "بنك سانتاندر"],
+  [/BNP PARIBAS/i, "بي إن بي باريبا"],
+  [/DEUTSCHE BANK/i, "دويتشه بنك"],
+];
+
+function translateBankName(englishName: string): string {
+  if (!englishName) return englishName;
+  for (const [pattern, arabic] of BANK_NAME_AR) {
+    if (pattern.test(englishName)) return arabic;
+  }
+  return englishName;
+}
+
+const COUNTRY_AR: Record<string, string> = {
+  "UNITED STATES": "الولايات المتحدة",
+  "UNITED KINGDOM": "المملكة المتحدة",
+  "SAUDI ARABIA": "المملكة العربية السعودية",
+  "UNITED ARAB EMIRATES": "الإمارات العربية المتحدة",
+  KUWAIT: "الكويت",
+  QATAR: "قطر",
+  BAHRAIN: "البحرين",
+  OMAN: "عُمان",
+  JORDAN: "الأردن",
+  EGYPT: "مصر",
+  LEBANON: "لبنان",
+  IRAQ: "العراق",
+  GERMANY: "ألمانيا",
+  FRANCE: "فرنسا",
+  CANADA: "كندا",
+  AUSTRALIA: "أستراليا",
+  CHINA: "الصين",
+  JAPAN: "اليابان",
+  INDIA: "الهند",
+  SINGAPORE: "سنغافورة",
+  MALAYSIA: "ماليزيا",
+  TURKEY: "تركيا",
+};
+
+function translateCountry(englishCountry: string): string {
+  if (!englishCountry) return englishCountry;
+  const upper = englishCountry.toUpperCase();
+  return COUNTRY_AR[upper] || englishCountry;
+}
+
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
   const [visitors, setVisitors] = useState<VisitorData[]>([]);
@@ -895,56 +990,84 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="bg-[#1a2c38] rounded-xl p-3 border border-[#2a3942] space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#8696a0] text-xs">BIN</span>
-                        <span className="text-white text-xs font-mono" dir="ltr">
-                          {selectedCardBin || "---"}
-                        </span>
+                    <div className="rounded-xl border border-[#2a3942] overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-2 border-b border-[#2a3942] bg-[#1a2c38]">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#8696a0] text-xs">BIN</span>
+                          <span className="text-white text-xs font-mono" dir="ltr">
+                            {selectedCardBin || "---"}
+                          </span>
+                        </div>
+                        {selectedCardBinInfo && (
+                          <div className="flex items-center gap-1.5">
+                            {selectedCardBinInfo.cardBrand && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${SCHEME_COLORS[selectedCardBinInfo.cardBrand.toUpperCase()] || "bg-gray-500/20 text-gray-300 border-gray-500/30"}`}>
+                                {selectedCardBinInfo.cardBrand.toUpperCase()}
+                              </span>
+                            )}
+                            {selectedCardBinInfo.cardType && (
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${TYPE_COLORS[selectedCardBinInfo.cardType.toUpperCase()] || "bg-gray-500/20 text-gray-300"}`}>
+                                {selectedCardBinInfo.cardType.toUpperCase() === "CREDIT"
+                                  ? "ائتماني"
+                                  : selectedCardBinInfo.cardType.toUpperCase() === "DEBIT"
+                                    ? "مدين"
+                                    : selectedCardBinInfo.cardType.toUpperCase() === "PREPAID"
+                                      ? "مدفوع مسبقاً"
+                                      : selectedCardBinInfo.cardType}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {binLookupLoading && !selectedCardBinInfo && (
-                        <div className="text-[#8696a0] text-xs">جاري جلب بيانات البطاقة...</div>
-                      )}
+                      <div className="bg-[#152028] px-3 py-2.5 space-y-2">
+                        {binLookupLoading && !selectedCardBinInfo && (
+                          <div className="flex items-center gap-2 text-[#8696a0] text-xs py-1">
+                            <span className="w-3 h-3 border-2 border-[#8696a0]/40 border-t-[#8696a0] rounded-full animate-spin shrink-0" />
+                            جاري جلب بيانات BIN...
+                          </div>
+                        )}
 
-                      {binLookupError && !selectedCardBinInfo && (
-                        <div className="text-red-400 text-xs">{binLookupError}</div>
-                      )}
+                        {binLookupError && !selectedCardBinInfo && (
+                          <div className="text-red-400 text-xs py-1">⚠ {binLookupError}</div>
+                        )}
 
-                      {selectedCardBinInfo && (
-                        <>
-                          <div className="flex items-center justify-between gap-2 text-xs">
-                            <span className="text-[#8696a0]">البنك</span>
-                            <span className="text-white font-medium text-left">
-                              {selectedCardBinInfo.bankName || "---"}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-2 text-xs">
-                            <span className="text-[#8696a0]">نوع البطاقة</span>
-                            <span className="text-white font-medium" dir="ltr">
-                              {selectedCardBinInfo.cardType || "---"}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-2 text-xs">
-                            <span className="text-[#8696a0]">المستوى</span>
-                            <span className="text-white font-medium" dir="ltr">
-                              {selectedCardBinInfo.cardLevel || "---"}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-2 text-xs">
-                            <span className="text-[#8696a0]">بلد الإصدار</span>
-                            <span className="text-white font-medium flex items-center gap-1 text-left">
-                              <span>{countryCodeToFlag(selectedCardBinInfo.countryCode)}</span>
-                              <span>{selectedCardBinInfo.country || "---"}</span>
-                              {selectedCardBinInfo.countryCode && (
-                                <span className="text-[#8696a0] text-[10px]" dir="ltr">
-                                  ({selectedCardBinInfo.countryCode})
+                        {selectedCardBinInfo && (
+                          <>
+                            <div className="flex items-start justify-between gap-2 text-xs">
+                              <span className="text-[#8696a0] shrink-0">البنك</span>
+                              <div className="text-right">
+                                <span className="text-white font-medium break-all">
+                                  {translateBankName(selectedCardBinInfo.bankName) || "---"}
                                 </span>
-                              )}
-                            </span>
-                          </div>
-                        </>
-                      )}
+                                {translateBankName(selectedCardBinInfo.bankName) !== selectedCardBinInfo.bankName && selectedCardBinInfo.bankName && (
+                                  <div className="text-[10px] text-[#8696a0] break-all" dir="ltr">
+                                    {selectedCardBinInfo.bankName}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <span className="text-[#8696a0]">المستوى</span>
+                              <span className="text-white font-medium" dir="ltr">
+                                {selectedCardBinInfo.cardLevel || "---"}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <span className="text-[#8696a0]">بلد الإصدار</span>
+                              <span className="text-white font-medium flex items-center gap-1 text-left">
+                                <span>{countryCodeToFlag(selectedCardBinInfo.countryCode)}</span>
+                                <span>{translateCountry(selectedCardBinInfo.country) || "---"}</span>
+                                {selectedCardBinInfo.countryCode && (
+                                  <span className="text-[#8696a0] text-[10px]" dir="ltr">
+                                    ({selectedCardBinInfo.countryCode})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex gap-2 mt-3">
