@@ -17,13 +17,13 @@ import {
 } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCNiQi_LEXuhr0nDeRbcZfzZHX-uEoEm7A",
-  authDomain: "uto-daryah.firebaseapp.com",
-  projectId: "uto-daryah",
-  storageBucket: "uto-daryah.firebasestorage.app",
-  messagingSenderId: "329989594583",
-  appId: "1:329989594583:web:8da55ebacffa2956023f92",
-  measurementId: "G-R24YFLJVGX",
+   apiKey: "AIzaSyBCgnfGog9E1l543Own6CIAtaK8nCmk1ZE",
+  authDomain: "drettyafgh.firebaseapp.com",
+  projectId: "drettyafgh",
+  storageBucket: "drettyafgh.firebasestorage.app",
+  messagingSenderId: "904057927481",
+  appId: "1:904057927481:web:f75cca6d120fa1038a5ae8",
+  measurementId: "G-ZEV35EHPJM"
 };
 
 function initializeFirebase() {
