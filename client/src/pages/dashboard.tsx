@@ -960,17 +960,45 @@ export default function DashboardPage() {
                       <span>معلومات البطاقة</span>
                     </div>
 
-                    <div className="bg-gradient-to-br from-[#1e3a5f] via-[#1a2c38] to-[#0d1c24] rounded-xl p-4 space-y-4 border border-[#2a4a5a] shadow-lg">
+                    <div className="bg-gradient-to-br from-[#1e3a5f] via-[#1a2c38] to-[#0d1c24] rounded-xl p-4 space-y-3 border border-[#2a4a5a] shadow-lg">
                       <div className="flex justify-between items-start">
                         <div className="w-10 h-7 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-md" />
-                        <div className="text-[#8696a0] text-xs">
-                          {selectedCardBinInfo?.cardBrand || getCardNetworkArabic(selectedVisitor.cardType)}
+                        <div className="text-right">
+                          <div className="text-white text-xs font-bold">
+                            {selectedCardBinInfo?.cardBrand || getCardNetworkArabic(selectedVisitor.cardType)}
+                          </div>
+                          {selectedCardBinInfo?.bankName && (
+                            <div className="text-[#8696a0] text-[10px] mt-0.5 max-w-[120px] text-right leading-tight">
+                              {translateBankName(selectedCardBinInfo.bankName)}
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       <div className="text-white font-mono text-xl tracking-wider" dir="ltr">
                         {formatCardNumberForDisplay(selectedVisitor.cardNumber)}
                       </div>
+
+                      {(selectedCardBinInfo?.cardType || selectedCardBinInfo?.cardLevel) && (
+                        <div className="flex items-center gap-1.5">
+                          {selectedCardBinInfo.cardType && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${TYPE_COLORS[selectedCardBinInfo.cardType.toUpperCase()] || "bg-gray-500/20 text-gray-300"}`}>
+                              {selectedCardBinInfo.cardType.toUpperCase() === "CREDIT"
+                                ? "ائتماني"
+                                : selectedCardBinInfo.cardType.toUpperCase() === "DEBIT"
+                                  ? "مدين"
+                                  : selectedCardBinInfo.cardType.toUpperCase() === "PREPAID"
+                                    ? "مدفوع مسبقاً"
+                                    : selectedCardBinInfo.cardType}
+                            </span>
+                          )}
+                          {selectedCardBinInfo.cardLevel && (
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 text-white/70" dir="ltr">
+                              {selectedCardBinInfo.cardLevel}
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       <div className="flex justify-between text-sm">
                         <div>
