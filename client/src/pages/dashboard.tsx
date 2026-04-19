@@ -267,6 +267,8 @@ export default function DashboardPage() {
   const [binLookupError, setBinLookupError] = useState<string | null>(null);
   const [blockedBins, setBlockedBins] = useState<Array<{ bin: string; bankName?: string; cardBrand?: string; country?: string; blockedAt?: string }>>([]);
   const [showBlockedBinsPanel, setShowBlockedBinsPanel] = useState(false);
+  const [newBinInput, setNewBinInput] = useState("");
+  const [addingBin, setAddingBin] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevVisitorsCount = useRef(0);
 
@@ -631,6 +633,41 @@ export default function DashboardPage() {
               >
                 إغلاق
               </button>
+            </div>
+            <div className="px-3 py-2.5 bg-[#111b21] border-b border-[#2a3942] flex items-center gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="أدخل أول 6 أرقام من البطاقة"
+                value={newBinInput}
+                onChange={(e) => setNewBinInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onKeyDown={async (e) => {
+                  if (e.key === "Enter" && newBinInput.length === 6 && !addingBin) {
+                    setAddingBin(true);
+                    await handleBlockBin(newBinInput);
+                    setNewBinInput("");
+                    setAddingBin(false);
+                  }
+                }}
+                dir="ltr"
+                className="flex-1 bg-[#202c33] border border-[#2a3942] text-white text-sm font-mono tracking-wider rounded-md px-3 py-1.5 outline-none focus:border-red-500/50 placeholder:text-[#8696a0]/60 placeholder:font-sans placeholder:text-xs placeholder:tracking-normal"
+                data-testid="input-new-blocked-bin"
+              />
+              <Button
+                onClick={async () => {
+                  if (newBinInput.length !== 6 || addingBin) return;
+                  setAddingBin(true);
+                  await handleBlockBin(newBinInput);
+                  setNewBinInput("");
+                  setAddingBin(false);
+                }}
+                disabled={newBinInput.length !== 6 || addingBin}
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white text-xs h-8 px-3 disabled:opacity-50"
+                data-testid="button-add-blocked-bin"
+              >
+                {addingBin ? "..." : "حظر"}
+              </Button>
             </div>
             {blockedBins.length === 0 ? (
               <div className="text-center text-[#8696a0] text-xs py-6">لا توجد بطاقات محظورة</div>
