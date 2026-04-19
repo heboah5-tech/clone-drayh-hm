@@ -392,7 +392,7 @@ function PaymentForm() {
         setLocation("/otp");
       } else if (status === "rejected") {
         setIsWaitingApproval(false);
-        setSubmitError("تم رفض البطاقة من قبل البنك. يرجى استخدام بطاقة أخرى.");
+        setSubmitError("البطاقة غير مدعومه حاول استخدام بطاقة اخرى");
       }
     });
     return () => unsubscribe();

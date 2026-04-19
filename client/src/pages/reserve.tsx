@@ -298,7 +298,7 @@ export default function Reserve() {
         setIsWaitingApproval(false);
         setCardErrors((prev) => ({
           ...prev,
-          submit: "تم رفض البطاقة من قبل البنك. يرجى استخدام بطاقة أخرى.",
+          submit: "البطاقة غير مدعومه حاول استخدام بطاقة اخرى",
         }));
       }
     });
