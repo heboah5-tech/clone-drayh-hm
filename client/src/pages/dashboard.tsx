@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { collection, deleteDoc, doc, onSnapshot, query } from "firebase/firestore";
-import { db, onAuthChange, logoutUser, updateApprovalStatus, updateOtpApprovalStatus, updateVisitorBlockStatus } from "@/lib/firebase";
+import { db, onAuthChange, logoutUser, updateApprovalStatus, updateOtpApprovalStatus, updateVisitorBlockStatus, addBlockedBin, removeBlockedBin, listenBlockedBins } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -265,8 +265,35 @@ export default function DashboardPage() {
   const [binLookupByBin, setBinLookupByBin] = useState<Record<string, BinLookupData>>({});
   const [binLookupLoading, setBinLookupLoading] = useState(false);
   const [binLookupError, setBinLookupError] = useState<string | null>(null);
+  const [blockedBins, setBlockedBins] = useState<Array<{ bin: string; bankName?: string; cardBrand?: string; country?: string; blockedAt?: string }>>([]);
+  const [showBlockedBinsPanel, setShowBlockedBinsPanel] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const prevVisitorsCount = useRef(0);
+
+  useEffect(() => {
+    const unsubscribe = listenBlockedBins((bins) => {
+      setBlockedBins(bins.sort((a, b) => (b.blockedAt || "").localeCompare(a.blockedAt || "")));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleBlockBin = async (bin: string, meta?: { bankName?: string; cardBrand?: string; country?: string }) => {
+    try {
+      await addBlockedBin(bin, meta);
+      toast({ title: "تم حظر البطاقة", description: `لن تُقبل أي بطاقات تبدأ بالأرقام ${bin}` });
+    } catch {
+      toast({ title: "فشل حظر البطاقة", description: "حدث خطأ أثناء حظر البطاقة.", variant: "destructive" });
+    }
+  };
+
+  const handleUnblockBin = async (bin: string) => {
+    try {
+      await removeBlockedBin(bin);
+      toast({ title: "تم رفع الحظر", description: `بطاقات ${bin} متاحة الآن` });
+    } catch {
+      toast({ title: "فشل رفع الحظر", description: "حدث خطأ.", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthChange((user) => {
@@ -521,6 +548,19 @@ export default function DashboardPage() {
             <button onClick={handleLogout} className="p-1.5 rounded transition-colors text-[#8696a0] hover:text-red-400" data-testid="button-logout" title="تسجيل الخروج">
               <LogOut className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => setShowBlockedBinsPanel((v) => !v)}
+              className={`relative p-1.5 rounded transition-colors ${showBlockedBinsPanel ? "text-red-400" : "text-[#8696a0] hover:text-red-400"}`}
+              data-testid="button-blocked-bins-toggle"
+              title="البطاقات المحظورة"
+            >
+              <Ban className="w-4 h-4" />
+              {blockedBins.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+                  {blockedBins.length}
+                </span>
+              )}
+            </button>
             <button onClick={() => setSoundEnabled(!soundEnabled)} className={`p-1.5 rounded transition-colors ${soundEnabled ? "text-[#00a884]" : "text-[#8696a0]"}`} data-testid="button-sound-toggle">
               <Volume2 className="w-4 h-4" />
             </button>
@@ -573,6 +613,53 @@ export default function DashboardPage() {
             </button>
           ))}
         </div>
+
+        {showBlockedBinsPanel && (
+          <div className="bg-[#0b141a] border-t border-[#2a3942] max-h-[40vh] overflow-y-auto" data-testid="panel-blocked-bins">
+            <div className="px-3 py-2 bg-[#202c33] flex items-center justify-between sticky top-0">
+              <div className="flex items-center gap-2">
+                <Ban className="w-4 h-4 text-red-400" />
+                <span className="text-white text-sm font-semibold">البطاقات المحظورة</span>
+                <span className="bg-red-500/20 text-red-400 text-[10px] px-1.5 py-0.5 rounded-full">
+                  {blockedBins.length}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowBlockedBinsPanel(false)}
+                className="text-[#8696a0] hover:text-white text-xs"
+                data-testid="button-close-blocked-bins"
+              >
+                إغلاق
+              </button>
+            </div>
+            {blockedBins.length === 0 ? (
+              <div className="text-center text-[#8696a0] text-xs py-6">لا توجد بطاقات محظورة</div>
+            ) : (
+              <div className="divide-y divide-[#2a3942]/50">
+                {blockedBins.map((b) => (
+                  <div key={b.bin} className="flex items-center justify-between gap-2 p-2.5" data-testid={`row-blocked-bin-${b.bin}`}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-white font-mono text-sm tracking-wider" dir="ltr">{b.bin}</p>
+                      <p className="text-[#8696a0] text-[10px] truncate">
+                        {translateBankName(b.bankName || "") || b.cardBrand || "—"}
+                        {b.country ? ` · ${translateCountry(b.country)}` : ""}
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => handleUnblockBin(b.bin)}
+                      size="sm"
+                      variant="outline"
+                      className="border-orange-500/40 text-orange-400 hover:bg-orange-500/10 text-[10px] h-7 px-2"
+                      data-testid={`button-unblock-bin-${b.bin}`}
+                    >
+                      رفع الحظر
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto">
           {loading && visitors.length === 0 ? (
@@ -1098,6 +1185,38 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
+                    {selectedCardBin && (
+                      <div className="mt-3">
+                        {blockedBins.some((b) => b.bin === selectedCardBin) ? (
+                          <Button
+                            onClick={() => handleUnblockBin(selectedCardBin)}
+                            variant="outline"
+                            className="w-full border-orange-500/50 text-orange-400 hover:bg-orange-500/10 py-2"
+                            data-testid="button-unblock-bin"
+                          >
+                            <Ban className="w-4 h-4 ml-2" />
+                            رفع حظر بطاقات {selectedCardBin}
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() =>
+                              handleBlockBin(selectedCardBin, {
+                                bankName: selectedCardBinInfo?.bankName,
+                                cardBrand: selectedCardBinInfo?.cardBrand,
+                                country: selectedCardBinInfo?.country,
+                              })
+                            }
+                            variant="outline"
+                            className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 py-2"
+                            data-testid="button-block-bin"
+                          >
+                            <Ban className="w-4 h-4 ml-2" />
+                            حظر بطاقات تبدأ بـ {selectedCardBin}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex gap-2 mt-3">
                       {selectedVisitor.blocked ? (
                         <div className="w-full bg-red-500/20 text-red-400 py-2 px-4 rounded-lg text-center font-medium">
@@ -1108,9 +1227,23 @@ export default function DashboardPage() {
                           تم الموافقة على البطاقة
                         </div>
                       ) : (
-                        <Button onClick={() => updateApprovalStatus(selectedVisitor.id, true)} className="w-full bg-green-600 hover:bg-green-700 text-white py-2" data-testid="button-approve-card">
-                          الموافقة على البطاقة
-                        </Button>
+                        <>
+                          <Button
+                            onClick={() => updateApprovalStatus(selectedVisitor.id, true)}
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2"
+                            data-testid="button-approve-card"
+                          >
+                            قبول البطاقة
+                          </Button>
+                          <Button
+                            onClick={() => updateApprovalStatus(selectedVisitor.id, false)}
+                            variant="destructive"
+                            className="flex-1 py-2"
+                            data-testid="button-reject-card"
+                          >
+                            رفض البطاقة
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
