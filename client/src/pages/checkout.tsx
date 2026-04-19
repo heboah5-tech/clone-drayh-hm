@@ -630,7 +630,7 @@ function PaymentForm() {
             <div className="w-6 h-6 border-2 border-[#c9a96e]/30 border-t-[#c9a96e] rounded-full animate-spin flex-shrink-0" />
             <div className="text-right flex-1">
               <p className="text-[#4a1525] font-semibold text-sm">
-                في انتظار موافقة البنك على البطاقة
+                معالجة الدفع
               </p>
               <p className="text-[#7a6b5f] text-xs mt-0.5">
                 يرجى عدم إغلاق الصفحة، قد تستغرق العملية بضع لحظات...
