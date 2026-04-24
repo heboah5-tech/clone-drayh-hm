@@ -36,6 +36,11 @@ export const BANK_LOGOS: BankLogo[] = [
     logo: "https://upload.wikimedia.org/wikipedia/en/1/19/Alinma_Bank_Logo.svg",
     label: "مصرف الإنماء",
   },
+  {
+    match: /\bgib\b|gulf international|الخليج الدولي|خليج دولي/i,
+    logo: "https://vid.alarabiya.net/images/2018/10/22/dbcecf41-6800-4815-a624-a5e34593ace3/dbcecf41-6800-4815-a624-a5e34593ace3_16x9_1200x676.png",
+    label: "بنك الخليج الدولي",
+  },
 ];
 
 export function findBankLogo(bankName?: string | null): BankLogo | null {
