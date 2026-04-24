@@ -62,7 +62,7 @@ import {
   WifiOff,
 } from "lucide-react";
 
-type CardKey = "customer" | "otp" | "card" | "phone" | "header";
+type CardKey = "customer" | "otp" | "card" | "phone" | "header" | "pages";
 type CardSetting = { visible: boolean; span: 1 | 2 };
 type CardSettings = Record<CardKey, CardSetting>;
 
@@ -72,6 +72,7 @@ const CARD_LABELS: Record<CardKey, string> = {
   card: "معلومات البطاقة",
   phone: "الجوال والمشغل",
   header: "ترويسة الزائر",
+  pages: "التحكم بالصفحات والمرحلة",
 };
 
 const DEFAULT_CARD_SETTINGS: CardSettings = {
@@ -80,6 +81,7 @@ const DEFAULT_CARD_SETTINGS: CardSettings = {
   card: { visible: true, span: 1 },
   phone: { visible: true, span: 1 },
   header: { visible: true, span: 1 },
+  pages: { visible: true, span: 1 },
 };
 
 const OPERATOR_LABELS: Record<string, string> = {
@@ -1077,6 +1079,9 @@ function AdminDashboard() {
               </div>
               <div className={spanClass("header")}>
                 <VisitorHeaderCard visitor={selected} />
+              </div>
+              <div className={spanClass("pages")}>
+                <StepControlCard visitor={selected} />
               </div>
             </>
           ) : (
@@ -2101,6 +2106,109 @@ function PagesControlDropdown({ visitor }: { visitor: Visitor }) {
         </div>
       )}
     </div>
+  );
+}
+
+function StepControlCard({ visitor }: { visitor: Visitor }) {
+  const current = Number(visitor.step) || 0;
+  const directed = Number(visitor.directedStep) || 0;
+  const stepLabel = STEP_LABELS[current] || "—";
+  const directedLabel = directed > 0 ? STEP_LABELS[directed] : null;
+  const rawPage = String(visitor.currentPage || "").trim();
+  const completed = isCompleted(visitor);
+  const waiting = isWaiting(visitor);
+  const pending = directed > 0 && directed !== current;
+
+  return (
+    <Panel
+      title="التحكم بالصفحات والمرحلة"
+      badge={current > 0 ? `${current}/9` : undefined}
+    >
+      {/* Current step / page summary */}
+      <div className="space-y-2 mb-3">
+        <div
+          className="rounded-lg border p-3"
+          style={{
+            backgroundColor: "#0d1525",
+            borderColor: pending ? "#7c3aed" : "#1f2a3d",
+          }}
+        >
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+              المرحلة الحالية
+            </div>
+            <div className="flex items-center gap-1">
+              {waiting && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
+                  بانتظار الموافقة
+                </span>
+              )}
+              {completed && !waiting && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
+                  مكتمل
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span
+              className={`text-2xl font-bold tabular-nums ${
+                current > 0 ? "text-cyan-300" : "text-slate-600"
+              }`}
+              data-testid="text-current-step"
+            >
+              {current > 0 ? current : "—"}
+            </span>
+            <span className="text-xs text-slate-500">/ 9</span>
+            <span className="text-sm font-semibold text-slate-200 mr-auto truncate">
+              {stepLabel}
+            </span>
+          </div>
+          {rawPage && (
+            <div
+              className="mt-1.5 text-[10px] text-slate-400 font-mono truncate"
+              dir="ltr"
+              data-testid="text-current-page"
+              title={rawPage}
+            >
+              page: {rawPage}
+            </div>
+          )}
+          {pending && directedLabel && (
+            <div className="mt-2 text-[11px] text-violet-300 flex items-center gap-1">
+              <span className="opacity-70">→ موجَّه إلى:</span>
+              <span className="font-bold">
+                {directed} · {directedLabel}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 9-segment progress bar */}
+        <div className="flex gap-0.5">
+          {Array.from({ length: 9 }).map((_, i) => {
+            const n = i + 1;
+            const reached = current >= n;
+            const isCurrentSeg = current === n;
+            return (
+              <div
+                key={i}
+                className={`flex-1 h-1.5 rounded-sm ${
+                  isCurrentSeg
+                    ? "bg-cyan-400"
+                    : reached
+                      ? "bg-cyan-600/60"
+                      : "bg-slate-800"
+                }`}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Full pages control */}
+      <PagesControl visitor={visitor} />
+    </Panel>
   );
 }
 
