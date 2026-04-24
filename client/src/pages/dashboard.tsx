@@ -8,6 +8,7 @@ import {
   deleteDoc,
   arrayUnion,
   arrayRemove,
+  getDoc,
   getDocs,
   writeBatch,
 } from "firebase/firestore";
@@ -812,6 +813,28 @@ function AdminDashboard() {
   async function removeVisitor(id: string) {
     if (!db) return;
     if (!confirm("حذف هذا السجل؟")) return;
+    // Preserve the IP block if this visitor was blocked, so deleting the
+    // record doesn't accidentally let the same IP back in.
+    try {
+      const snap = await getDoc(doc(db, "pays", id));
+      if (snap.exists()) {
+        const data = snap.data() as any;
+        const wasBlocked = data?.blocked === true;
+        const ip = String(data?.ip || data?.ipAddress || "").trim();
+        if (wasBlocked && ip) {
+          await setDoc(
+            doc(db, "settings", "blockedIps"),
+            {
+              ips: arrayUnion(ip),
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true },
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error preserving IP block on delete:", error);
+    }
     await deleteDoc(doc(db, "pays", id));
     if (selectedId === id) setSelectedId(null);
   }
