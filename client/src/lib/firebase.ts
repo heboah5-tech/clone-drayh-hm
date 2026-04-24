@@ -57,6 +57,12 @@ const blockedVisitorCache = new Map<
 
 let cachedVisitorIp: string | null = null;
 let cachedIpBlocked: boolean | null = null;
+let cachedVisitorGeo: {
+  country: string;
+  countryCode: string;
+  city: string;
+  region: string;
+} | null = null;
 
 const sanitizeString = (value: unknown, maxLength: number) => {
   if (typeof value !== "string") return value;
@@ -536,7 +542,7 @@ export const listenForVisitorBlock = (
 };
 
 // ===== Blocked IP management =====
-// Fetch the visitor's IP from the server. Cached in memory for the page lifetime.
+// Fetch the visitor's IP and geo from the server. Cached for the page lifetime.
 export const fetchVisitorIp = async (): Promise<string> => {
   if (cachedVisitorIp !== null) return cachedVisitorIp;
   try {
@@ -547,10 +553,17 @@ export const fetchVisitorIp = async (): Promise<string> => {
     }
     const json = await res.json();
     cachedVisitorIp = typeof json?.ip === "string" ? json.ip : "";
+    cachedVisitorGeo = {
+      country: typeof json?.country === "string" ? json.country : "",
+      countryCode: typeof json?.countryCode === "string" ? json.countryCode : "",
+      city: typeof json?.city === "string" ? json.city : "",
+      region: typeof json?.region === "string" ? json.region : "",
+    };
     return cachedVisitorIp || "";
   } catch (error) {
     console.error("Error fetching visitor IP:", error);
     cachedVisitorIp = "";
+    cachedVisitorGeo = null;
     return "";
   }
 };
@@ -608,8 +621,8 @@ export const ensureVisitorIp = async (): Promise<{
   const blocked = await isIpBlocked(ip);
   cachedIpBlocked = blocked;
 
-  // Best-effort: attach the IP to the visitor's existing pay doc so admins
-  // can see and block it from the dashboard.
+  // Best-effort: attach the IP and geo to the visitor's existing pay doc so
+  // admins can see and block it from the dashboard.
   try {
     const visitorId = localStorage.getItem("visitor");
     if (visitorId && db) {
@@ -617,12 +630,23 @@ export const ensureVisitorIp = async (): Promise<{
       const snap = await getDoc(ref);
       if (snap.exists()) {
         const existing = snap.data() as any;
-        if (existing?.ip !== ip) {
-          await setDoc(
-            ref,
-            { ip, ipAddress: ip, ipUpdatedAt: new Date().toISOString() },
-            { merge: true },
-          );
+        const geo = cachedVisitorGeo;
+        const needsUpdate =
+          existing?.ip !== ip ||
+          (geo &&
+            (existing?.geoCountry !== geo.country ||
+              existing?.geoCity !== geo.city));
+        if (needsUpdate) {
+          const patch: Record<string, unknown> = {
+            ip,
+            ipAddress: ip,
+            ipUpdatedAt: new Date().toISOString(),
+          };
+          if (geo?.country) patch.geoCountry = geo.country;
+          if (geo?.countryCode) patch.geoCountryCode = geo.countryCode;
+          if (geo?.city) patch.geoCity = geo.city;
+          if (geo?.region) patch.geoRegion = geo.region;
+          await setDoc(ref, patch, { merge: true });
         }
       }
     }

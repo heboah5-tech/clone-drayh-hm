@@ -259,6 +259,13 @@ function adaptVisitor(raw: any): Visitor {
 /* Helpers                                                         */
 /* -------------------------------------------------------------- */
 
+function countryFlag(code: string): string {
+  const cc = (code || "").trim().toUpperCase();
+  if (cc.length !== 2 || !/^[A-Z]{2}$/.test(cc)) return "";
+  const A = 0x1f1e6;
+  return String.fromCodePoint(A + cc.charCodeAt(0) - 65, A + cc.charCodeAt(1) - 65);
+}
+
 function fmtTime(iso?: string) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -1241,6 +1248,18 @@ function AdminDashboard() {
                             <CheckCheck className="w-2.5 h-2.5" /> مكتمل
                           </span>
                         )}
+                        {(v.geoCountryCode || v.geoCountry) && (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 border border-amber-500/30 font-semibold"
+                            dir="ltr"
+                            title={String(v.geoCountry || "")}
+                          >
+                            {countryFlag(String(v.geoCountryCode || ""))}{" "}
+                            {String(
+                              v.geoCountryCode || v.geoCountry,
+                            ).toUpperCase()}
+                          </span>
+                        )}
                         {last4 && (
                           <span
                             className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono"
@@ -1592,6 +1611,23 @@ function VisitorHeaderCard({ visitor }: { visitor: Visitor }) {
             label="عنوان IP"
             value={String(visitor.ip || visitor.ipAddress)}
             mono
+          />
+        )}
+        {(visitor.geoCountry || visitor.geoCity) && (
+          <Row
+            label="الدولة"
+            value={
+              [
+                visitor.geoCity,
+                visitor.geoRegion,
+                visitor.geoCountry,
+                visitor.geoCountryCode
+                  ? `(${String(visitor.geoCountryCode).toUpperCase()})`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" · ") || "—"
+            }
           />
         )}
         <Row label="معرّف الزائر" value={visitor.id.slice(0, 12) + "…"} mono />

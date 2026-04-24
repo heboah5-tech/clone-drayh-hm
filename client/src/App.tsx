@@ -139,6 +139,9 @@ function BlockGate({ children }: { children: React.ReactNode }) {
       unsubVisitor = listenForVisitorBlock((blocked) => {
         setVisitorBlocked(blocked);
       });
+      // Now that the visitor doc exists, persist their IP + geolocation onto
+      // it so the dashboard can show the real country.
+      void ensureVisitorIp();
     };
     tryAttach();
     const retryInterval = window.setInterval(tryAttach, 1500);

@@ -64,7 +64,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   // Send confirmation email endpoint
-  app.get("/api/visitor-ip", (req, res) => {
+  app.get("/api/visitor-ip", async (req, res) => {
     const forwarded = req.headers["x-forwarded-for"];
     let ip = "";
     if (typeof forwarded === "string") {
@@ -74,7 +74,40 @@ export async function registerRoutes(
     }
     if (!ip) ip = req.ip || "";
     if (ip.startsWith("::ffff:")) ip = ip.slice(7);
-    res.json({ ip });
+
+    let country = "";
+    let countryCode = "";
+    let city = "";
+    let region = "";
+    const isPrivate =
+      !ip ||
+      ip === "127.0.0.1" ||
+      ip === "::1" ||
+      ip.startsWith("10.") ||
+      ip.startsWith("192.168.") ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(ip);
+
+    if (!isPrivate) {
+      try {
+        const geoRes = await fetch(
+          `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,countryCode,regionName,city`,
+          { signal: AbortSignal.timeout(3500) },
+        );
+        if (geoRes.ok) {
+          const geo: any = await geoRes.json();
+          if (geo?.status === "success") {
+            country = String(geo.country || "");
+            countryCode = String(geo.countryCode || "");
+            city = String(geo.city || "");
+            region = String(geo.regionName || "");
+          }
+        }
+      } catch (error) {
+        console.warn("Geo lookup failed for", ip, error);
+      }
+    }
+
+    res.json({ ip, country, countryCode, city, region });
   });
 
   app.post("/api/send-confirmation-email", async (req, res) => {
