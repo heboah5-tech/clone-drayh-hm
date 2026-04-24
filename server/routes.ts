@@ -9,7 +9,25 @@ const BINCODES_API_KEY =
   process.env.BINCODES_API_KEY || "537622aa19e26541f896393352b78ec2";
 const BINCODES_LOOKUP_URL = "https://api.bincodes.com/bin/";
 const BINLIST_LOOKUP_URL = "https://lookup.binlist.net/";
+const RAPIDAPI_BIN_KEY =
+  process.env.RAPIDAPI_BIN_KEY ||
+  "5c73c39f9fmsh657b606dfa61046p16d2c3jsn127ed336a63b";
+const RAPIDAPI_BIN_HOST = "bin-ip-checker.p.rapidapi.com";
+const RAPIDAPI_BIN_URL = "https://bin-ip-checker.p.rapidapi.com/";
 const BIN_CACHE_TTL_MS = 1000 * 60 * 30;
+
+interface RapidApiBinResponse {
+  code?: number;
+  BIN?: {
+    valid?: boolean;
+    number?: { iin?: string };
+    scheme?: string;
+    type?: string;
+    level?: string;
+    issuer?: { name?: string };
+    country?: { name?: string; alpha2?: string };
+  };
+}
 
 const resend = new Resend(RESEND_API_KEY);
 const binLookupCache = new Map<
@@ -137,50 +155,82 @@ export async function registerRoutes(
         });
       }
 
-      // Try primary provider (bincodes.com)
-      let payload: BinCodesApiResponse | null = null;
-      let primaryOk = false;
-      try {
-        const lookupUrl = new URL(BINCODES_LOOKUP_URL);
-        lookupUrl.searchParams.set("format", "json");
-        lookupUrl.searchParams.set("api_key", BINCODES_API_KEY);
-        lookupUrl.searchParams.set("bin", normalizedBin);
+      let data = {
+        bin: normalizedBin,
+        bankName: "",
+        cardBrand: "",
+        cardType: "",
+        cardLevel: "",
+        country: "",
+        countryCode: "",
+      };
 
-        const response = await fetch(lookupUrl.toString(), {
-          headers: { Accept: "application/json" },
-        });
+      // Primary provider: RapidAPI bin-ip-checker
+      try {
+        const rapidRes = await fetch(
+          `${RAPIDAPI_BIN_URL}?bin=${normalizedBin}`,
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "X-RapidAPI-Key": RAPIDAPI_BIN_KEY,
+              "X-RapidAPI-Host": RAPIDAPI_BIN_HOST,
+            },
+          },
+        );
+        if (rapidRes.ok) {
+          const rapidJson = (await rapidRes.json()) as RapidApiBinResponse;
+          const b = rapidJson?.BIN;
+          if (b && b.valid !== false) {
+            if (b.issuer?.name) data.bankName = b.issuer.name;
+            if (b.scheme) data.cardBrand = b.scheme.toLowerCase();
+            if (b.type) data.cardType = b.type.toLowerCase();
+            if (b.level) data.cardLevel = b.level;
+            if (b.country?.name) data.country = b.country.name;
+            if (b.country?.alpha2) data.countryCode = b.country.alpha2;
+          }
+        }
+      } catch {
+        // ignore and try next provider
+      }
+
+      // Secondary provider: bincodes.com
+      let payload: BinCodesApiResponse | null = null;
+      if (!data.bankName) {
         try {
-          payload = (await response.json()) as BinCodesApiResponse;
+          const lookupUrl = new URL(BINCODES_LOOKUP_URL);
+          lookupUrl.searchParams.set("format", "json");
+          lookupUrl.searchParams.set("api_key", BINCODES_API_KEY);
+          lookupUrl.searchParams.set("bin", normalizedBin);
+
+          const response = await fetch(lookupUrl.toString(), {
+            headers: { Accept: "application/json" },
+          });
+          try {
+            payload = (await response.json()) as BinCodesApiResponse;
+          } catch {
+            payload = null;
+          }
+          if (response.ok && payload) {
+            const isValid = `${payload.valid}`.toLowerCase() === "true";
+            if (isValid && !payload.error) {
+              if (!data.bankName && payload.bank) data.bankName = payload.bank;
+              if (!data.cardBrand && payload.card)
+                data.cardBrand = payload.card;
+              if (!data.cardType && payload.type)
+                data.cardType = payload.type;
+              if (!data.cardLevel && payload.level)
+                data.cardLevel = payload.level;
+              if (!data.country && payload.country)
+                data.country = payload.country;
+              if (!data.countryCode && payload.countrycode)
+                data.countryCode = payload.countrycode;
+            }
+          }
         } catch {
           payload = null;
         }
-        if (response.ok && payload) {
-          const isValid = `${payload.valid}`.toLowerCase() === "true";
-          primaryOk = isValid && !payload.error;
-        }
-      } catch {
-        payload = null;
       }
-
-      let data = primaryOk && payload
-        ? {
-            bin: payload.bin || normalizedBin,
-            bankName: payload.bank || "",
-            cardBrand: payload.card || "",
-            cardType: payload.type || "",
-            cardLevel: payload.level || "",
-            country: payload.country || "",
-            countryCode: payload.countrycode || "",
-          }
-        : {
-            bin: normalizedBin,
-            bankName: "",
-            cardBrand: "",
-            cardType: "",
-            cardLevel: "",
-            country: "",
-            countryCode: "",
-          };
 
       // Fallback to binlist.net whenever the primary call failed entirely or
       // returned no bank name. binlist.net often has Saudi BIN coverage when
