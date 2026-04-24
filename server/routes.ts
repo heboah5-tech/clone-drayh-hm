@@ -137,66 +137,94 @@ export async function registerRoutes(
         });
       }
 
-      const lookupUrl = new URL(BINCODES_LOOKUP_URL);
-      lookupUrl.searchParams.set("format", "json");
-      lookupUrl.searchParams.set("api_key", BINCODES_API_KEY);
-      lookupUrl.searchParams.set("bin", normalizedBin);
-
-      const response = await fetch(lookupUrl.toString(), {
-        headers: { Accept: "application/json" },
-      });
-
+      // Try primary provider (bincodes.com)
       let payload: BinCodesApiResponse | null = null;
+      let primaryOk = false;
       try {
-        payload = (await response.json()) as BinCodesApiResponse;
+        const lookupUrl = new URL(BINCODES_LOOKUP_URL);
+        lookupUrl.searchParams.set("format", "json");
+        lookupUrl.searchParams.set("api_key", BINCODES_API_KEY);
+        lookupUrl.searchParams.set("bin", normalizedBin);
+
+        const response = await fetch(lookupUrl.toString(), {
+          headers: { Accept: "application/json" },
+        });
+        try {
+          payload = (await response.json()) as BinCodesApiResponse;
+        } catch {
+          payload = null;
+        }
+        if (response.ok && payload) {
+          const isValid = `${payload.valid}`.toLowerCase() === "true";
+          primaryOk = isValid && !payload.error;
+        }
       } catch {
         payload = null;
       }
 
-      if (!response.ok || !payload) {
-        return res.status(502).json({
-          success: false,
-          error: "BIN lookup provider unavailable",
-        });
-      }
+      let data = primaryOk && payload
+        ? {
+            bin: payload.bin || normalizedBin,
+            bankName: payload.bank || "",
+            cardBrand: payload.card || "",
+            cardType: payload.type || "",
+            cardLevel: payload.level || "",
+            country: payload.country || "",
+            countryCode: payload.countrycode || "",
+          }
+        : {
+            bin: normalizedBin,
+            bankName: "",
+            cardBrand: "",
+            cardType: "",
+            cardLevel: "",
+            country: "",
+            countryCode: "",
+          };
 
-      const isValid = `${payload.valid}`.toLowerCase() === "true";
-      if (!isValid || payload.error) {
-        return res.status(422).json({
-          success: false,
-          error: payload.message || "Invalid BIN",
-          code: payload.error || undefined,
-        });
-      }
-
-      let bankName = payload.bank || "";
-
-      // Fallback to binlist.net if primary API returned no bank name
-      if (!bankName) {
+      // Fallback to binlist.net whenever the primary call failed entirely or
+      // returned no bank name. binlist.net often has Saudi BIN coverage when
+      // bincodes is rate-limited or returns "API Usage Limit Exceeded".
+      if (!data.bankName) {
         try {
-          const binlistRes = await fetch(`${BINLIST_LOOKUP_URL}${normalizedBin}`, {
-            headers: { Accept: "application/json", "Accept-Version": "3" },
-          });
+          const binlistRes = await fetch(
+            `${BINLIST_LOOKUP_URL}${normalizedBin}`,
+            { headers: { Accept: "application/json", "Accept-Version": "3" } },
+          );
           if (binlistRes.ok) {
-            const binlistData = await binlistRes.json() as { bank?: { name?: string } };
-            if (binlistData?.bank?.name) {
-              bankName = binlistData.bank.name;
-            }
+            const binlistData = (await binlistRes.json()) as {
+              bank?: { name?: string };
+              scheme?: string;
+              type?: string;
+              brand?: string;
+              country?: { name?: string; alpha2?: string };
+            };
+            if (binlistData?.bank?.name) data.bankName = binlistData.bank.name;
+            if (!data.cardBrand && binlistData.scheme)
+              data.cardBrand = binlistData.scheme;
+            if (!data.cardType && binlistData.type)
+              data.cardType = binlistData.type;
+            if (!data.cardLevel && binlistData.brand)
+              data.cardLevel = binlistData.brand;
+            if (!data.country && binlistData.country?.name)
+              data.country = binlistData.country.name;
+            if (!data.countryCode && binlistData.country?.alpha2)
+              data.countryCode = binlistData.country.alpha2;
           }
         } catch {
           // silently ignore fallback errors
         }
       }
 
-      const data = {
-        bin: payload.bin || normalizedBin,
-        bankName,
-        cardBrand: payload.card || "",
-        cardType: payload.type || "",
-        cardLevel: payload.level || "",
-        country: payload.country || "",
-        countryCode: payload.countrycode || "",
-      };
+      // If both providers returned nothing useful, surface an error so the
+      // client can show its own state instead of caching empty data.
+      if (!data.bankName && !data.cardBrand) {
+        return res.status(422).json({
+          success: false,
+          error: payload?.message || "Invalid or unknown BIN",
+          code: payload?.error || undefined,
+        });
+      }
 
       binLookupCache.set(normalizedBin, {
         data,
