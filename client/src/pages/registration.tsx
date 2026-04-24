@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useRef } from "react";
-import { addData } from "@/lib/firebase";
+import { addData, handleCurrentPage } from "@/lib/firebase";
 import { setupOnlineStatus } from "@/lib/utils";
 import emailjs from "@emailjs/browser";
 
@@ -13,6 +13,9 @@ const EMAILJS_TEMPLATE_ID = "template_xkdlwg3";
 const EMAILJS_PUBLIC_KEY = "ROVj9RXGGeBR7U8iG";
 
 export default function RegistrationPage() {
+  useEffect(() => {
+    void handleCurrentPage("registration");
+  }, []);
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f5efe6] to-[#ebddd0] flex flex-col" dir="rtl">
       <Header />

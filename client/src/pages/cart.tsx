@@ -2,7 +2,7 @@ import { ArrowRight, Trash2, Plus, Minus, ShoppingCart, Ticket } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { useState, useEffect } from "react";
-import { addData } from "@/lib/firebase";
+import { addData, handleCurrentPage } from "@/lib/firebase";
 
 import ticketImage from "@assets/455c3dc333504d44bfe63f8258282e15.webp";
 
@@ -16,6 +16,7 @@ export default function CartPage() {
   
   useEffect(() => {
     setPricePerTicket(getTicketPrice());
+    void handleCurrentPage("cart");
   }, []);
   
   const subtotal = pricePerTicket * quantity;
