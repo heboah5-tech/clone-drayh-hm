@@ -1741,27 +1741,6 @@ function OtpControlCard({
           onApprove={() => onApprove("otpApprovalStatus")}
           onReject={() => onReject("otpApprovalStatus")}
         />
-        <OtpRow
-          label="OTP الجوال (SMS)"
-          step={8}
-          code={phoneOtp}
-          status={
-            waitingPhone
-              ? "waiting"
-              : visitor.phoneOtpApprovalStatus || (phoneOtp ? "received" : "—")
-          }
-          canDecide={waitingPhone}
-          onApprove={() => onApprove("phoneOtpApprovalStatus")}
-          onReject={() => onReject("phoneOtpApprovalStatus")}
-        />
-        <OtpRow
-          label="رمز نفاذ النهائي"
-          step={9}
-          code={nafadOtp}
-          status={nafadOtp ? "received" : "—"}
-          canDecide={false}
-        />
-
         {/* Status section */}
         <div>
           <div className="text-[11px] text-slate-500 mb-1.5">حالة الموافقات</div>
@@ -1879,8 +1858,7 @@ function NafadControl({
 
   return (
     <div className="bg-teal-500/10 border border-teal-500/30 rounded-lg p-2 space-y-2">
-      <div className="text-[11px] text-teal-300 font-bold flex items-center justify-between">
-        <span>طلب نفاذ — رقم التحقق</span>
+      <div className="text-[11px] text-teal-300 font-bold flex items-center justify-end">
         {sentCode ? (
           <span
             className="font-mono text-base text-teal-200"
