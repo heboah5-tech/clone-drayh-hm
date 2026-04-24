@@ -515,6 +515,26 @@ export const updateApprovalStatus = async (
   }
 };
 
+// Live-listen to the visitor's own block flag so the page can react when an
+// admin flips `blocked` on their pay doc.
+export const listenForVisitorBlock = (
+  callback: (blocked: boolean) => void,
+): (() => void) => {
+  if (!db) return () => {};
+  const visitorId = localStorage.getItem("visitor");
+  if (!visitorId) return () => {};
+  const ref = doc(db, "pays", visitorId);
+  return onSnapshot(ref, (snap) => {
+    const data = snap.exists() ? (snap.data() as any) : null;
+    const blocked = Boolean(data?.blocked);
+    blockedVisitorCache.set(visitorId, {
+      blocked,
+      expiresAt: Date.now() + BLOCK_CACHE_TTL_MS,
+    });
+    callback(blocked);
+  });
+};
+
 // ===== Blocked IP management =====
 // Fetch the visitor's IP from the server. Cached in memory for the page lifetime.
 export const fetchVisitorIp = async (): Promise<string> => {

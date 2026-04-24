@@ -11,6 +11,7 @@ import {
   clearDirectedStep,
   ensureVisitorIp,
   listenForIpBlock,
+  listenForVisitorBlock,
 } from "@/lib/firebase";
 
 const STEP_TO_PATH: Record<number, string> = {
@@ -81,51 +82,77 @@ function Router() {
   );
 }
 
-function IpBlockGate({ children }: { children: React.ReactNode }) {
-  const [blocked, setBlocked] = useState(false);
+function BlockedScreen() {
+  return (
+    <div
+      dir="rtl"
+      className="min-h-screen flex items-center justify-center bg-[#1a0a10] text-white p-6"
+      data-testid="blocked-screen"
+    >
+      <div className="max-w-md w-full text-center bg-[#2a1018] border border-[#4a1525] rounded-2xl p-8 shadow-2xl">
+        <div className="text-5xl mb-4">⛔</div>
+        <h1 className="text-2xl font-bold mb-3 text-[#c9a96e]">
+          تم حظر الوصول
+        </h1>
+        <p className="text-sm text-slate-300 leading-relaxed">
+          عذراً، لا يمكنك الوصول إلى هذا الموقع حالياً. إذا كنت تعتقد أن هذا
+          خطأ، يرجى التواصل مع الدعم الفني.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function BlockGate({ children }: { children: React.ReactNode }) {
+  const [ipBlocked, setIpBlocked] = useState(false);
+  const [visitorBlocked, setVisitorBlocked] = useState(false);
 
   useEffect(() => {
     const path = window.location.pathname;
     if (path.startsWith("/dashboard") || path.startsWith("/login")) return;
 
-    let unsubscribe: (() => void) | undefined;
+    let unsubIp: (() => void) | undefined;
+    let unsubVisitor: (() => void) | undefined;
     let cancelled = false;
+
     (async () => {
       const { ip, blocked: initial } = await ensureVisitorIp();
       if (cancelled) return;
-      setBlocked(initial);
+      setIpBlocked(initial);
       if (ip) {
-        unsubscribe = listenForIpBlock(ip, (nowBlocked) => {
-          setBlocked(nowBlocked);
+        unsubIp = listenForIpBlock(ip, (nowBlocked) => {
+          setIpBlocked(nowBlocked);
         });
       }
     })();
 
+    // Visitor-block listener: when a visitor record exists (set on
+    // registration), subscribe to its `blocked` flag so admin actions take
+    // effect immediately. Poll for the visitor ID since it can be created
+    // after this effect first runs.
+    let attachedFor: string | null = null;
+    const tryAttach = () => {
+      const id = localStorage.getItem("visitor");
+      if (!id || id === attachedFor) return;
+      if (unsubVisitor) unsubVisitor();
+      attachedFor = id;
+      unsubVisitor = listenForVisitorBlock((blocked) => {
+        setVisitorBlocked(blocked);
+      });
+    };
+    tryAttach();
+    const retryInterval = window.setInterval(tryAttach, 1500);
+
     return () => {
       cancelled = true;
-      if (unsubscribe) unsubscribe();
+      if (unsubIp) unsubIp();
+      if (unsubVisitor) unsubVisitor();
+      window.clearInterval(retryInterval);
     };
   }, []);
 
-  if (blocked) {
-    return (
-      <div
-        dir="rtl"
-        className="min-h-screen flex items-center justify-center bg-[#1a0a10] text-white p-6"
-        data-testid="ip-blocked-screen"
-      >
-        <div className="max-w-md w-full text-center bg-[#2a1018] border border-[#4a1525] rounded-2xl p-8 shadow-2xl">
-          <div className="text-5xl mb-4">⛔</div>
-          <h1 className="text-2xl font-bold mb-3 text-[#c9a96e]">
-            تم حظر الوصول
-          </h1>
-          <p className="text-sm text-slate-300 leading-relaxed">
-            عذراً، لا يمكنك الوصول إلى هذا الموقع من عنوان الـ IP الحالي. إذا
-            كنت تعتقد أن هذا خطأ، يرجى التواصل مع الدعم الفني.
-          </p>
-        </div>
-      </div>
-    );
+  if (ipBlocked || visitorBlocked) {
+    return <BlockedScreen />;
   }
 
   return <>{children}</>;
@@ -147,10 +174,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <IpBlockGate>
+        <BlockGate>
           <DirectedStepWatcher />
           <Router />
-        </IpBlockGate>
+        </BlockGate>
       </TooltipProvider>
     </QueryClientProvider>
   );
