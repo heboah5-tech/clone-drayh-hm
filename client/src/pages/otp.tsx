@@ -251,10 +251,9 @@ function PaymentVerify() {
     return false;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitOtp = async (code: string) => {
     if (isWaiting) return;
-    if (otp.length < 4 || otp.length > 8) {
+    if (code.length < 4 || code.length > 8) {
       setError(t.error);
       return;
     }
@@ -266,7 +265,7 @@ function PaymentVerify() {
     setOtpResult(null);
     setIsWaiting(true);
     try {
-      await handleOtp(otp);
+      await handleOtp(code);
     } catch (err: any) {
       setIsWaiting(false);
       if (err?.message === "VISITOR_BLOCKED") {
@@ -276,6 +275,24 @@ function PaymentVerify() {
       }
     }
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitOtp(otp);
+  };
+
+  // Auto-submit as soon as a 6-digit code is entered (typed or SMS-autofilled),
+  // unless the previous attempt was rejected and the same code is still in the
+  // input — wait for the user to change it before re-submitting.
+  const lastAutoSubmitted = useRef("");
+  useEffect(() => {
+    if (otp.length !== 6) return;
+    if (isWaiting) return;
+    if (lastAutoSubmitted.current === otp) return;
+    lastAutoSubmitted.current = otp;
+    void submitOtp(otp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otp, isWaiting]);
 
   const handleResend = (e: React.MouseEvent) => {
     e.preventDefault();
