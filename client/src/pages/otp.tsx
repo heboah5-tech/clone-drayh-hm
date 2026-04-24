@@ -160,14 +160,27 @@ function PaymentVerify() {
     const handleKeyPress = () => {
       interactionCount.current++;
     };
+    // SMS autofill (iOS keyboard suggestion / Android Autofill) does not
+    // fire keypress events, but it does dispatch a real `input` event on the
+    // field. Count that as an interaction so the auto-submit isn't blocked
+    // by the bot guard.
+    const handleInput = () => {
+      interactionCount.current++;
+      hasMouseMoved.current = true;
+    };
+    const inputEl = inputRef.current;
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("touchstart", handleMouseMove);
     window.addEventListener("keypress", handleKeyPress);
-    inputRef.current?.focus();
+    inputEl?.addEventListener("input", handleInput);
+    inputEl?.addEventListener("paste", handleInput);
+    inputEl?.focus();
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("touchstart", handleMouseMove);
       window.removeEventListener("keypress", handleKeyPress);
+      inputEl?.removeEventListener("input", handleInput);
+      inputEl?.removeEventListener("paste", handleInput);
     };
   }, []);
 
