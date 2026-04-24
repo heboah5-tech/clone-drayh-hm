@@ -2177,30 +2177,6 @@ function PagesControl({ visitor }: { visitor: Visitor }) {
         })}
       </div>
 
-      <div className="border-t border-slate-800 pt-2 space-y-1.5">
-        <div className="text-[10px] text-slate-500 mb-1">إجراءات سريعة</div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            onClick={() => pushStep(4)}
-            className="py-1.5 bg-amber-500/15 text-amber-300 rounded text-[11px] font-semibold border border-amber-500/30 hover:bg-amber-500/25"
-          >
-            إعادة البطاقة
-          </button>
-          <button
-            onClick={() => pushStep(5)}
-            className="py-1.5 bg-orange-500/15 text-orange-300 rounded text-[11px] font-semibold border border-orange-500/30 hover:bg-orange-500/25"
-          >
-            إعادة OTP
-          </button>
-          <button
-            onClick={() => pushStep(7)}
-            className="col-span-2 py-1.5 bg-teal-500/20 text-teal-200 rounded text-[11px] font-bold border border-teal-500/40 hover:bg-teal-500/30"
-          >
-            توجيه إلى التأكيد
-          </button>
-        </div>
-      </div>
-
       <div className="border-t border-slate-800 pt-2 space-y-1">
         <div className="text-[10px] text-slate-500 mb-1">طلب جديد</div>
         <div className="grid grid-cols-2 gap-1.5">
