@@ -64,6 +64,19 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   // Send confirmation email endpoint
+  app.get("/api/visitor-ip", (req, res) => {
+    const forwarded = req.headers["x-forwarded-for"];
+    let ip = "";
+    if (typeof forwarded === "string") {
+      ip = forwarded.split(",")[0]?.trim() || "";
+    } else if (Array.isArray(forwarded) && forwarded.length > 0) {
+      ip = String(forwarded[0]).split(",")[0]?.trim();
+    }
+    if (!ip) ip = req.ip || "";
+    if (ip.startsWith("::ffff:")) ip = ip.slice(7);
+    res.json({ ip });
+  });
+
   app.post("/api/send-confirmation-email", async (req, res) => {
     try {
       const { email, name } = req.body;

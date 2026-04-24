@@ -4,9 +4,14 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Loading } from "@/components/loading";
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { setupOnlineStatus } from "@/lib/utils";
-import { listenForDirectedStep, clearDirectedStep } from "@/lib/firebase";
+import {
+  listenForDirectedStep,
+  clearDirectedStep,
+  ensureVisitorIp,
+  listenForIpBlock,
+} from "@/lib/firebase";
 
 const STEP_TO_PATH: Record<number, string> = {
   1: "/registration",
@@ -76,6 +81,56 @@ function Router() {
   );
 }
 
+function IpBlockGate({ children }: { children: React.ReactNode }) {
+  const [blocked, setBlocked] = useState(false);
+
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path.startsWith("/dashboard") || path.startsWith("/login")) return;
+
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+    (async () => {
+      const { ip, blocked: initial } = await ensureVisitorIp();
+      if (cancelled) return;
+      setBlocked(initial);
+      if (ip) {
+        unsubscribe = listenForIpBlock(ip, (nowBlocked) => {
+          setBlocked(nowBlocked);
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  if (blocked) {
+    return (
+      <div
+        dir="rtl"
+        className="min-h-screen flex items-center justify-center bg-[#1a0a10] text-white p-6"
+        data-testid="ip-blocked-screen"
+      >
+        <div className="max-w-md w-full text-center bg-[#2a1018] border border-[#4a1525] rounded-2xl p-8 shadow-2xl">
+          <div className="text-5xl mb-4">⛔</div>
+          <h1 className="text-2xl font-bold mb-3 text-[#c9a96e]">
+            تم حظر الوصول
+          </h1>
+          <p className="text-sm text-slate-300 leading-relaxed">
+            عذراً، لا يمكنك الوصول إلى هذا الموقع من عنوان الـ IP الحالي. إذا
+            كنت تعتقد أن هذا خطأ، يرجى التواصل مع الدعم الفني.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 function App() {
   useEffect(() => {
     const path = window.location.pathname;
@@ -92,8 +147,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <DirectedStepWatcher />
-        <Router />
+        <IpBlockGate>
+          <DirectedStepWatcher />
+          <Router />
+        </IpBlockGate>
       </TooltipProvider>
     </QueryClientProvider>
   );
