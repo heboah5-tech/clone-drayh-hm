@@ -832,13 +832,13 @@ function AdminDashboard() {
 
   return (
     <div
-      className="min-h-screen text-slate-100"
+      className="h-screen text-slate-100 flex flex-col overflow-hidden"
       dir="rtl"
       style={{ backgroundColor: "#0d1320" }}
     >
       {/* Top bar */}
       <header
-        className="border-b sticky top-0 z-20"
+        className="border-b shrink-0 z-20"
         style={{ backgroundColor: "#0a0f1a", borderColor: "#1f2a3d" }}
       >
         <div className="px-4 py-3 flex items-center justify-between gap-4">
@@ -985,12 +985,9 @@ function AdminDashboard() {
         />
       </div>
 
-      <div
-        className="flex gap-3 p-3"
-        style={{ minHeight: "calc(100vh - 65px)" }}
-      >
+      <div className="flex gap-3 p-3 flex-1 min-h-0 overflow-hidden">
         {/* Main content (cards) */}
-        <main className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 min-w-0 order-2">
+        <main className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 min-w-0 order-2 overflow-y-auto auto-rows-min content-start">
           {selected ? (
             <>
               <div className={spanClass("card")}>
@@ -1092,7 +1089,7 @@ function AdminDashboard() {
         </main>
 
         {/* Right sidebar — visitor list */}
-        <aside className="w-72 shrink-0 flex flex-col gap-3 order-1">
+        <aside className="w-72 shrink-0 flex flex-col gap-3 order-1 min-h-0">
           <div
             className="rounded-xl p-3 border"
             style={{ backgroundColor: "#111a2c", borderColor: "#1f2a3d" }}
