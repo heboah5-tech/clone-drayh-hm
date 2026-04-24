@@ -723,12 +723,6 @@ function AdminDashboard() {
       );
     }
     return [...list].sort((a, b) => {
-      const wa = isWaiting(a) ? 0 : 1;
-      const wb = isWaiting(b) ? 0 : 1;
-      if (wa !== wb) return wa - wb;
-      const oa = isOnline(a) ? 0 : 1;
-      const ob = isOnline(b) ? 0 : 1;
-      if (oa !== ob) return oa - ob;
       const ta = new Date(a.updatedAt || 0).getTime() || 0;
       const tb = new Date(b.updatedAt || 0).getTime() || 0;
       return tb - ta;
