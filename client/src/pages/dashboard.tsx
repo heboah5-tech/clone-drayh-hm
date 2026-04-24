@@ -2740,16 +2740,56 @@ function CardInfoCard({
 }) {
   const p = visitor.payment || {};
   const hasCard = !!(p.cardLast4 || p.cardName || p.cardNumber);
+
+  const bin = p.cardBin;
+  const visitorAny = visitor as any;
+  const hasEnrichment =
+    !!(visitorAny.cardBankName || visitorAny.bankName) &&
+    !!(visitorAny.cardCategory || visitorAny.cardLevel || visitorAny.cardCountry);
+
+  useEffect(() => {
+    if (!db) return;
+    if (!bin || bin.length < 6) return;
+    if (hasEnrichment) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/bin-lookup/${bin}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        if (!json?.success || !json.data) return;
+        const d = json.data;
+        const patch: Record<string, string> = {
+          updatedAt: new Date().toISOString(),
+        };
+        if (d.bankName) patch.cardBankName = String(d.bankName);
+        if (d.cardType) patch.cardCategory = String(d.cardType);
+        if (d.cardLevel) patch.cardLevel = String(d.cardLevel);
+        if (d.country) patch.cardCountry = String(d.country);
+        if (d.scheme && !visitorAny.cardScheme)
+          patch.cardScheme = String(d.scheme);
+        await setDoc(doc(db!, "pays", visitor.id), patch, { merge: true });
+      } catch {
+        // silent
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bin, hasEnrichment, visitor.id]);
+
   if (!hasCard && visitor.nafadConfirmationStatus !== "waiting") return null;
 
   const last4 = p.cardLast4 || "••••";
   const expiry = p.cardExpiry || "";
   const name = p.cardName || "";
   const scheme = String(p.cardScheme || "").toLowerCase();
-  const bin = p.cardBin;
   const bank = safeText(p.cardBank);
   const cardType = String(p.cardType || "").toUpperCase();
   const cardLevel = String(p.cardLevel || "").toUpperCase();
+  const cardCountry = String(p.cardCountry || "").toUpperCase();
   const matchedBank = findBankLogo(p.cardBank);
   const bankLogo: string | null = p.cardBankLogo || matchedBank?.logo || null;
   const bankLabel: string =
@@ -2802,49 +2842,64 @@ function CardInfoCard({
             {schemeLabel}
           </div>
           <div
-            className="absolute top-2.5 right-3 flex items-center gap-1.5 max-w-[60%]"
+            className="absolute top-2.5 right-3 flex flex-col items-end gap-1 max-w-[65%]"
             title={bankLabel || "غير معروف"}
           >
-            {bankLogo && (
-              <div className="bg-white/95 rounded-md p-1 flex items-center justify-center shadow-sm shrink-0">
-                <img
-                  src={bankLogo}
-                  alt={bankLabel || "Bank"}
-                  className="h-5 w-auto max-w-[44px] object-contain"
-                  onError={(e) => {
-                    (e.currentTarget.parentElement as HTMLElement).style.display =
-                      "none";
-                  }}
-                />
-              </div>
-            )}
-            {!bankLogo && (
-              <div
-                className="text-[10px] font-semibold opacity-90 truncate text-right"
-                dir="auto"
-              >
-                {bankLabel || "—"}
-              </div>
-            )}
-          </div>
-
-          {(cardType || cardLevel) && (
-            <div className="absolute top-9 right-3 flex flex-col items-end gap-0.5 max-w-[60%]">
-              {cardType && (
-                <div className="text-[9px] tracking-wider opacity-90 px-1.5 py-px bg-white/15 rounded uppercase font-semibold">
-                  {cardType}
+            <div className="flex items-center gap-1.5">
+              {bankLogo && (
+                <div className="bg-white/95 rounded-md p-1 flex items-center justify-center shadow-sm shrink-0">
+                  <img
+                    src={bankLogo}
+                    alt={bankLabel || "Bank"}
+                    className="h-6 w-auto max-w-[52px] object-contain"
+                    onError={(e) => {
+                      (
+                        e.currentTarget.parentElement as HTMLElement
+                      ).style.display = "none";
+                    }}
+                  />
                 </div>
               )}
-              {cardLevel && (
+              {bankLabel && (
                 <div
-                  className="text-[9px] tracking-wider opacity-95 px-1.5 py-px bg-white/15 rounded uppercase font-semibold leading-tight text-right"
-                  title={cardLevel}
+                  className="text-[10px] font-bold opacity-95 truncate text-right max-w-[120px]"
+                  dir="auto"
                 >
-                  {cardLevel}
+                  {bankLabel}
                 </div>
               )}
             </div>
-          )}
+            {(cardType || cardLevel || cardCountry) && (
+              <div className="flex flex-wrap items-center justify-end gap-1">
+                {cardType && (
+                  <span
+                    className="text-[9px] tracking-wider px-1.5 py-px bg-white/25 backdrop-blur-sm rounded uppercase font-bold leading-tight"
+                    data-testid="card-bin-type"
+                  >
+                    {cardType}
+                  </span>
+                )}
+                {cardLevel && (
+                  <span
+                    className="text-[9px] tracking-wider px-1.5 py-px bg-amber-300/30 text-amber-50 backdrop-blur-sm rounded uppercase font-bold leading-tight"
+                    title={cardLevel}
+                    data-testid="card-bin-level"
+                  >
+                    {cardLevel}
+                  </span>
+                )}
+                {cardCountry && (
+                  <span
+                    className="text-[9px] tracking-wider px-1.5 py-px bg-white/15 backdrop-blur-sm rounded uppercase font-bold leading-tight"
+                    title={cardCountry}
+                    data-testid="card-bin-country"
+                  >
+                    {cardCountry}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="mt-10">
             <div className="w-10 h-7 bg-gradient-to-br from-yellow-300 to-yellow-600 rounded mb-3 opacity-90" />
