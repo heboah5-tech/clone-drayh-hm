@@ -63,7 +63,7 @@ import {
   WifiOff,
 } from "lucide-react";
 
-type CardKey = "customer" | "otp" | "card" | "phone" | "header";
+type CardKey = "customer" | "otp" | "card" | "header";
 type CardSetting = { visible: boolean; span: 1 | 2 };
 type CardSettings = Record<CardKey, CardSetting>;
 
@@ -71,7 +71,6 @@ const CARD_LABELS: Record<CardKey, string> = {
   customer: "معلومات أساسية",
   otp: "العميل المحدد / OTP",
   card: "معلومات البطاقة",
-  phone: "الجوال والمشغل",
   header: "ترويسة الزائر",
 };
 
@@ -79,7 +78,6 @@ const DEFAULT_CARD_SETTINGS: CardSettings = {
   customer: { visible: true, span: 1 },
   otp: { visible: true, span: 1 },
   card: { visible: true, span: 1 },
-  phone: { visible: true, span: 1 },
   header: { visible: true, span: 1 },
 };
 
@@ -1075,25 +1073,6 @@ function AdminDashboard() {
                       forceFinalOtp: true,
                       forceFinalOtpAt: new Date().toISOString(),
                     })
-                  }
-                />
-              </div>
-              <div className={spanClass("phone")}>
-                <PhoneInfoCard
-                  visitor={selected}
-                  onApprove={() =>
-                    setApprovalStatus(
-                      selected.id,
-                      "phoneOtpApprovalStatus",
-                      "approved",
-                    )
-                  }
-                  onReject={() =>
-                    setApprovalStatus(
-                      selected.id,
-                      "phoneOtpApprovalStatus",
-                      "rejected",
-                    )
                   }
                 />
               </div>
@@ -2308,89 +2287,6 @@ function StatusLine({ label, status }: { label: string; status: string }) {
       <span className="text-slate-400">{label}</span>
       <span className={`font-semibold ${cls}`}>{text}</span>
     </div>
-  );
-}
-
-function PhoneInfoCard({
-  visitor,
-  onApprove,
-  onReject,
-}: {
-  visitor: Visitor;
-  onApprove: () => void;
-  onReject: () => void;
-}) {
-  const phone = String(visitor.phoneVerification || visitor.phone || "");
-  const operatorId = String(visitor.operator || "").toLowerCase();
-  const operatorLabel =
-    OPERATOR_LABELS[operatorId] ||
-    (operatorId ? operatorId.toUpperCase() : "—");
-  const smsOtp = String(visitor.smsOtp || "");
-  const status: string =
-    visitor.phoneOtpApprovalStatus || (smsOtp ? "received" : "—");
-  const waiting = status === "waiting";
-
-  if (!phone && !operatorId && !smsOtp) {
-    return (
-      <Panel title="الجوال والمشغل">
-        <div className="text-slate-500 text-[12px]">
-          لم يصل بعد إلى مرحلة التحقق بالجوال.
-        </div>
-      </Panel>
-    );
-  }
-
-  const operatorTone =
-    operatorId === "stc"
-      ? "bg-violet-500/15 text-violet-300 border-violet-500/30"
-      : operatorId === "mobily"
-        ? "bg-blue-500/15 text-blue-300 border-blue-500/30"
-        : operatorId === "zain"
-          ? "bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30"
-          : "bg-slate-700/30 text-slate-300 border-slate-600/40";
-
-  return (
-    <Panel
-      title="الجوال والمشغل"
-      badge={waiting ? "بانتظار الموافقة" : undefined}
-    >
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-2">
-            <div className="text-[10px] text-slate-500 mb-1">رقم الجوال</div>
-            <div
-              className="text-cyan-300 font-mono font-bold text-sm"
-              dir="ltr"
-              data-testid="phone-card-number"
-            >
-              {phone || "—"}
-            </div>
-          </div>
-          <div className={`rounded-lg border p-2 ${operatorTone}`}>
-            <div className="text-[10px] opacity-70 mb-1">المشغل</div>
-            <div className="font-bold text-sm" data-testid="phone-card-operator">
-              {operatorLabel}
-            </div>
-          </div>
-        </div>
-
-        <OtpRow
-          label="OTP الجوال (SMS)"
-          step={5}
-          code={smsOtp}
-          status={status}
-          canDecide={waiting}
-          onApprove={onApprove}
-          onReject={onReject}
-        />
-
-        {visitor.smsOtpSubmittedAt && (
-          <div className="text-[10px] text-slate-500 text-left" dir="ltr">
-            {fmtTime(visitor.smsOtpSubmittedAt)}
-          </div>
-        )}
-      </div>
-    </Panel>
   );
 }
 
