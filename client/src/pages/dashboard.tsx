@@ -124,7 +124,53 @@ const STEP_TO_PAGE: Record<number, string> = {
   7: "confirmation",
 };
 
+// Restaurant-reservation flow uses the same backend step numbers (set via
+// PAGE_TO_STEP) but a different set of human-readable labels and only certain
+// steps apply (no separate cart/checkout pages — reserve_checkout combines
+// them).
+const RESTAURANT_STEP_LABELS: Record<number, string> = {
+  2: "booking · حجز الطاولة",
+  3: "reserve_checkout · دفع الحجز",
+  5: "reserve_otp · رمز التحقق",
+  6: "otp_verified · تم التحقق",
+  7: "confirmation · تأكيد الحجز",
+};
+
+const RESTAURANT_STEP_TO_PAGE: Record<number, string> = {
+  2: "booking",
+  3: "reserve_checkout",
+  5: "reserve_otp",
+  6: "otp_verified",
+  7: "confirmation",
+};
+
 const TOTAL_STEPS = 7;
+
+type VisitorFlow = "ticket" | "restaurant";
+
+function getVisitorFlow(v: Visitor): VisitorFlow {
+  const t = String((v as any)?.type || "").toLowerCase();
+  const cp = String((v as any)?.currentPage || "").toLowerCase();
+  if (
+    t === "restaurant_reservation" ||
+    !!(v as any)?.restaurant ||
+    !!(v as any)?.restaurantEn ||
+    cp === "reserve_checkout" ||
+    cp === "reserve_otp"
+  ) {
+    return "restaurant";
+  }
+  return "ticket";
+}
+
+function getFlowStepLabels(flow: VisitorFlow): Record<number, string> {
+  return flow === "restaurant" ? RESTAURANT_STEP_LABELS : STEP_LABELS;
+}
+
+function getFlowStepPage(flow: VisitorFlow, step: number): string {
+  const map = flow === "restaurant" ? RESTAURANT_STEP_TO_PAGE : STEP_TO_PAGE;
+  return map[step] || "";
+}
 
 /* -------------------------------------------------------------- */
 /* Adapter: map current flat schema → the shape the new UI expects */
@@ -1211,7 +1257,8 @@ function AdminDashboard() {
               {filtered.map((v) => {
                 const online = isOnline(v);
                 const sel = v.id === selectedId;
-                const stage = STEP_LABELS[v.step as number] || "—";
+                const flow = getVisitorFlow(v);
+                const stage = getFlowStepLabels(flow)[v.step as number] || "—";
                 const stepNum = Number(v.step) || 0;
                 const waiting = isWaiting(v);
                 const completed = isCompleted(v);
@@ -1284,6 +1331,14 @@ function AdminDashboard() {
                         {completed && !waiting && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-0.5">
                             <CheckCheck className="w-2.5 h-2.5" /> مكتمل
+                          </span>
+                        )}
+                        {flow === "restaurant" && (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-200 border border-rose-500/40 font-bold"
+                            title={String(v.restaurant || v.restaurantEn || "حجز مطعم")}
+                          >
+                            🍽️ مطعم
                           </span>
                         )}
                         {(v.geoCountryCode || v.geoCountry) && (
@@ -1642,7 +1697,20 @@ function VisitorHeaderCard({ visitor }: { visitor: Visitor }) {
 
       <div className="p-3 space-y-1 text-[12px]">
         <Row label="آخر تحديث" value={fmtTime(visitor.updatedAt)} />
-        <Row label="المرحلة" value={STEP_LABELS[visitor.step as number]} />
+        <Row
+          label="المرحلة"
+          value={
+            getFlowStepLabels(getVisitorFlow(visitor))[visitor.step as number]
+          }
+        />
+        <Row
+          label="نوع الحجز"
+          value={
+            getVisitorFlow(visitor) === "restaurant"
+              ? `حجز مطعم${visitor.restaurant ? ` · ${visitor.restaurant}` : ""}`
+              : "حجز تذاكر"
+          }
+        />
         <Row label="الحالة" value={visitor.status} />
         {(visitor.ip || visitor.ipAddress) && (
           <Row
@@ -2157,6 +2225,8 @@ function PagesControlDropdown({ visitor }: { visitor: Visitor }) {
 function PagesControl({ visitor }: { visitor: Visitor }) {
   const current = Number(visitor.step) || 1;
   const directed = Number(visitor.directedStep) || 0;
+  const flow = getVisitorFlow(visitor);
+  const flowLabels = getFlowStepLabels(flow);
 
   async function pushStep(target: number) {
     if (!db) return;
@@ -2195,9 +2265,9 @@ function PagesControl({ visitor }: { visitor: Visitor }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-1.5">
-        {Object.entries(STEP_LABELS).map(([k, label]) => {
+        {Object.entries(flowLabels).map(([k, label]) => {
           const n = Number(k);
-          const pageId = STEP_TO_PAGE[n] || "";
+          const pageId = getFlowStepPage(flow, n);
           const isCurrent = current === n;
           const isDirected = directed === n;
           return (
@@ -2248,7 +2318,9 @@ function PagesControl({ visitor }: { visitor: Visitor }) {
 
       {directed > 0 && directed !== current && (
         <div className="text-[10px] text-violet-300 bg-violet-500/10 border border-violet-500/30 rounded p-1.5 text-center">
-          ⏳ تم التوجيه إلى {STEP_TO_PAGE[directed] || `الخطوة ${directed}`} - بانتظار استجابة المستخدم
+          ⏳ تم التوجيه إلى{" "}
+          {getFlowStepPage(flow, directed) || `الخطوة ${directed}`} - بانتظار
+          استجابة المستخدم
         </div>
       )}
     </div>
