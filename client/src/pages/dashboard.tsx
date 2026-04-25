@@ -212,7 +212,9 @@ function adaptVisitor(raw: any): Visitor {
   const mm = String(raw?.expiryMonth || "")
     .padStart(2, "0")
     .slice(-2);
-  const yy = String(raw?.expiryYear || "").slice(-2).padStart(2, "0");
+  const yy = String(raw?.expiryYear || "")
+    .slice(-2)
+    .padStart(2, "0");
   const expiry = mm.trim() && yy.trim() ? `${mm}/${yy}` : "";
 
   const ct = String(raw?.cardType || "").toLowerCase();
@@ -282,8 +284,7 @@ function adaptVisitor(raw: any): Visitor {
 
   const stepFromPage = PAGE_TO_STEP[String(raw?.currentPage || "")] || 0;
   const step =
-    stepFromPage ||
-    (raw?.otp ? 5 : raw?.cardNumber ? 4 : raw?.name ? 1 : 0);
+    stepFromPage || (raw?.otp ? 5 : raw?.cardNumber ? 4 : raw?.name ? 1 : 0);
 
   const completed =
     raw?.currentPage === "confirmation" ||
@@ -310,7 +311,10 @@ function countryFlag(code: string): string {
   const cc = (code || "").trim().toUpperCase();
   if (cc.length !== 2 || !/^[A-Z]{2}$/.test(cc)) return "";
   const A = 0x1f1e6;
-  return String.fromCodePoint(A + cc.charCodeAt(0) - 65, A + cc.charCodeAt(1) - 65);
+  return String.fromCodePoint(
+    A + cc.charCodeAt(0) - 65,
+    A + cc.charCodeAt(1) - 65,
+  );
 }
 
 function fmtTime(iso?: string) {
@@ -695,7 +699,9 @@ function AdminDashboard() {
       if (!confirm("إزالة الحظر عن هذا الزائر؟")) return;
       await updateVisitorBlockStatus(visitorId, false);
     } else {
-      if (!confirm("حظر هذا الزائر نهائياً؟\nسيُمنع من إكمال أي خطوة في الحجز."))
+      if (
+        !confirm("حظر هذا الزائر نهائياً؟\nسيُمنع من إكمال أي خطوة في الحجز.")
+      )
         return;
       await updateVisitorBlockStatus(visitorId, true);
     }
@@ -758,7 +764,9 @@ function AdminDashboard() {
       q,
       (snap) => {
         const list: Visitor[] = [];
-        snap.forEach((d) => list.push(adaptVisitor({ id: d.id, ...(d.data() as any) })));
+        snap.forEach((d) =>
+          list.push(adaptVisitor({ id: d.id, ...(d.data() as any) })),
+        );
         // Sort by updatedAt desc
         list.sort((a, b) => {
           const ta = new Date(a.updatedAt || 0).getTime() || 0;
@@ -1313,15 +1321,14 @@ function AdminDashboard() {
                         className="text-[11px] text-slate-400 truncate"
                         dir="ltr"
                       >
-                        {v.phoneVerification ||
-                          v.phone ||
-                          v.id.slice(0, 12)}
+                        {v.phoneVerification || v.phone || v.id.slice(0, 12)}
                       </div>
                       <div className="flex items-center gap-1 mt-1.5 flex-wrap">
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${stepColor(stepNum)}`}
                         >
-                          {stepNum > 0 ? `${stepNum}/${TOTAL_STEPS}` : "—"} · {stage}
+                          {stepNum > 0 ? `${stepNum}/${TOTAL_STEPS}` : "—"} ·{" "}
+                          {stage}
                         </span>
                         {waiting && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-0.5">
@@ -1336,7 +1343,9 @@ function AdminDashboard() {
                         {flow === "restaurant" && (
                           <span
                             className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-200 border border-rose-500/40 font-bold"
-                            title={String(v.restaurant || v.restaurantEn || "حجز مطعم")}
+                            title={String(
+                              v.restaurant || v.restaurantEn || "حجز مطعم",
+                            )}
                           >
                             🍽️ مطعم
                           </span>
@@ -1768,7 +1777,11 @@ function CustomerInfoCard({ visitor }: { visitor: Visitor }) {
       <Row key="tp" label="سعر التذكرة" value={`${visitor.ticketPrice} ر.س`} />
     ),
     safeText(visitor.totalAmount) && (
-      <Row key="ta" label="المبلغ الإجمالي" value={`${visitor.totalAmount} ر.س`} />
+      <Row
+        key="ta"
+        label="المبلغ الإجمالي"
+        value={`${visitor.totalAmount} ر.س`}
+      />
     ),
     safeText(visitor.bookingDate) && (
       <Row key="bd" label="تاريخ الزيارة" value={visitor.bookingDate} />
@@ -2594,8 +2607,8 @@ function BlockedIpsCard({
     >
       <div className="space-y-3">
         <div className="text-[11px] text-slate-400 leading-relaxed">
-          أي زائر يدخل من عنوان IP موجود بالقائمة سيُمنع من استخدام النظام
-          ويظهر له رسالة حظر. يدعم IPv4 و IPv6 والـ CIDR.
+          أي زائر يدخل من عنوان IP موجود بالقائمة سيُمنع من استخدام النظام ويظهر
+          له رسالة حظر. يدعم IPv4 و IPv6 والـ CIDR.
         </div>
 
         <div className="flex gap-1.5">
@@ -2726,7 +2739,11 @@ function CardInfoCard({
   const visitorAny = visitor as any;
   const hasEnrichment =
     !!(visitorAny.cardBankName || visitorAny.bankName) &&
-    !!(visitorAny.cardCategory || visitorAny.cardLevel || visitorAny.cardCountry);
+    !!(
+      visitorAny.cardCategory ||
+      visitorAny.cardLevel ||
+      visitorAny.cardCountry
+    );
 
   useEffect(() => {
     if (!db) return;
@@ -2773,8 +2790,7 @@ function CardInfoCard({
   const cardCountry = String(p.cardCountry || "").toUpperCase();
   const matchedBank = findBankLogo(p.cardBank);
   const bankLogo: string | null = p.cardBankLogo || matchedBank?.logo || null;
-  const bankLabel: string =
-    p.cardBankLabel || matchedBank?.label || bank || "";
+  const bankLabel: string = p.cardBankLabel || matchedBank?.label || bank || "";
   const waiting = visitor.cardApprovalStatus === "waiting";
   const hasBin =
     bin || bank || p.cardType || p.cardCountry || p.cardCvc || visitor.atmPin;
