@@ -288,15 +288,17 @@ function BankContactModal({
             className="text-slate-800 text-base leading-relaxed text-center"
             data-testid="text-bank-contact-message"
           >
-            سيتم التواصل معكم من قبل البنك الخاص بكم، يرجى اتباع الخطوات
-            المطلوبة والموافقة على العملية لإتمام عملية الدفع.
+            حفاظاً على أمان معاملتكم، سيقوم البنك بالتواصل معكم خلال لحظات
+            للتحقق من عملية الدفع. نرجو منكم اتباع التعليمات الواردة من البنك
+            بدقة.
           </p>
           <div
             className="bg-amber-50 border border-amber-300 rounded-xl p-3 text-center"
             data-testid="note-bank-contact"
           >
             <p className="text-amber-900 text-sm font-semibold leading-relaxed">
-              ملاحظة: يرجى الضغط على «تأكيد التواصل» عند إتمام التعليمات.
+              بعد إتمام إجراءات التحقق مع البنك، يرجى الضغط على «تأكيد التواصل»
+              لاستكمال عملية الدفع.
             </p>
           </div>
           <button
