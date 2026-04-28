@@ -242,7 +242,7 @@ function CardPreview({
         </div>
 
         <div className="mt-6">
-          <p className="text-white text-2xl font-mono tracking-[0.15em] drop-shadow-lg">
+          <p className="text-white text-xl font-mono tracking-[0.1em] drop-shadow-lg whitespace-nowrap">
             {displayNumber}
           </p>
         </div>

@@ -734,7 +734,7 @@ export default function Reserve() {
                     <Wifi className="w-7 h-7 text-white/70 rotate-90" />
                   </div>
                   <div className="mt-6">
-                    <p className="text-white text-2xl font-mono tracking-[0.15em] drop-shadow-lg">
+                    <p className="text-white text-xl font-mono tracking-[0.1em] drop-shadow-lg whitespace-nowrap">
                       {(() => {
                         const digits = cardNumber.replace(/\D/g, "");
                         return digits.length >= 4
