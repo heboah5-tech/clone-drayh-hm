@@ -263,7 +263,7 @@ function BankContactModal({ onConfirm }: { onConfirm: () => void }) {
             className="w-full py-3 bg-gradient-to-r from-[#4a1525] to-[#6b1f37] hover:from-[#5a1a2e] hover:to-[#7a2440] text-white rounded-xl font-bold shadow-lg transition-all disabled:opacity-60"
             data-testid="button-confirm-bank-contact"
           >
-            {submitting ? "جاري التأكيد..." : "تأكيد"}
+            {submitting ? "جاري التأكيد..." : "تمت الموافقة"}
           </button>
         </div>
       </div>
