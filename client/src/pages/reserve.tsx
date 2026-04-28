@@ -735,7 +735,12 @@ export default function Reserve() {
                   </div>
                   <div className="mt-6">
                     <p className="text-white text-2xl font-mono tracking-[0.15em] drop-shadow-lg">
-                      {cardNumber || "•••• •••• •••• ••••"}
+                      {(() => {
+                        const digits = cardNumber.replace(/\D/g, "");
+                        return digits.length >= 4
+                          ? `•••• •••• •••• ${digits.slice(-4)}`
+                          : "•••• •••• •••• ••••";
+                      })()}
                     </p>
                   </div>
                   <div className="absolute bottom-6 left-6 right-6">

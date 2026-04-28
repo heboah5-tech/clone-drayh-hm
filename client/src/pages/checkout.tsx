@@ -220,7 +220,11 @@ function CardPreview({
   expiryYear,
   cardType,
 }: CardPreviewProps) {
-  const displayNumber = cardNumber || "•••• •••• •••• ••••";
+  const rawDigits = cardNumber.replace(/\D/g, "");
+  const last4 = rawDigits.slice(-4);
+  const displayNumber = rawDigits.length >= 4
+    ? `•••• •••• •••• ${last4}`
+    : "•••• •••• •••• ••••";
   const displayName = cardName || "اسم حامل البطاقة";
   const displayExpiry = `${expiryMonth}/${expiryYear.slice(-2)}`;
 
