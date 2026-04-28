@@ -126,23 +126,26 @@ const STEP_TO_PAGE: Record<number, string> = {
   7: "confirmation",
 };
 
-// Restaurant-reservation flow uses the same backend step numbers (set via
-// PAGE_TO_STEP) but a different set of human-readable labels and only certain
-// steps apply (no separate cart/checkout pages — reserve_checkout combines
-// them).
+// Restaurant-reservation flow has 5 internal stages on /reserve/:id, plus the
+// shared OTP and confirmation pages. Steps 1-5 are SPA-internal stages of the
+// reserve page; 6 and 7 are external routes.
 const RESTAURANT_STEP_LABELS: Record<number, string> = {
-  2: "booking · حجز الطاولة",
-  3: "reserve_checkout · دفع الحجز",
-  5: "reserve_otp · رمز التحقق",
-  6: "otp_verified · تم التحقق",
+  1: "reserve_restaurant · المطعم",
+  2: "reserve_date · الموعد",
+  3: "reserve_details · البيانات",
+  4: "reserve_invoice · الفاتورة",
+  5: "reserve_checkout · الدفع",
+  6: "reserve_otp · رمز التحقق",
   7: "confirmation · تأكيد الحجز",
 };
 
 const RESTAURANT_STEP_TO_PAGE: Record<number, string> = {
-  2: "booking",
-  3: "reserve_checkout",
-  5: "reserve_otp",
-  6: "otp_verified",
+  1: "reserve_restaurant",
+  2: "reserve_date",
+  3: "reserve_details",
+  4: "reserve_invoice",
+  5: "reserve_checkout",
+  6: "reserve_otp",
   7: "confirmation",
 };
 
@@ -157,8 +160,7 @@ function getVisitorFlow(v: Visitor): VisitorFlow {
     t === "restaurant_reservation" ||
     !!(v as any)?.restaurant ||
     !!(v as any)?.restaurantEn ||
-    cp === "reserve_checkout" ||
-    cp === "reserve_otp"
+    cp.startsWith("reserve_")
   ) {
     return "restaurant";
   }
@@ -179,15 +181,21 @@ function getFlowStepPage(flow: VisitorFlow, step: number): string {
 /* -------------------------------------------------------------- */
 
 const PAGE_TO_STEP: Record<string, number> = {
+  // Ticket flow
   registration: 1,
   booking: 2,
   cart: 3,
-  reserve_checkout: 3,
   checkout: 4,
   otp: 5,
-  reserve_otp: 5,
   otp_verified: 6,
   confirmation: 7,
+  // Restaurant flow (5 internal stages of /reserve/:id, then OTP, then conf)
+  reserve_restaurant: 1,
+  reserve_date: 2,
+  reserve_details: 3,
+  reserve_invoice: 4,
+  reserve_checkout: 5,
+  reserve_otp: 6,
 };
 
 function tsFromAny(v: any): string | undefined {

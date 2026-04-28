@@ -26,18 +26,18 @@ const TICKET_STEP_TO_PATH: Record<number, string> = {
   7: "/confirmation",
 };
 
-// For restaurant flow, steps 2 (booking) and 3 (reserve_checkout) are
-// internal page steps inside `/reserve/:id`. We dispatch a custom event for
-// reserve.tsx to handle without losing the restaurant URL context. OTP and
-// confirmation steps still map to shared routes.
+// Restaurant flow:
+//   Steps 1-5  → SPA-internal stages of /reserve/:id (handled by reserve.tsx
+//                via the "admin-restaurant-step" custom event below).
+//   Step  6    → /otp
+//   Step  7    → /confirmation
 const RESTAURANT_STEP_TO_PATH: Record<number, string> = {
-  5: "/otp",
   6: "/otp",
   7: "/confirmation",
 };
 
 // Steps that the reserve.tsx page handles internally (no URL change needed).
-const RESTAURANT_INTERNAL_STEPS = new Set<number>([2, 3]);
+const RESTAURANT_INTERNAL_STEPS = new Set<number>([1, 2, 3, 4, 5]);
 
 function isRestaurantVisitor(data: any): boolean {
   return (
@@ -74,16 +74,23 @@ function DirectedStepWatcher() {
 
       // Restaurant SPA-internal steps: hand off to reserve.tsx via a custom
       // event so it can update its internal step state without us navigating
-      // away from /reserve/:id.
+      // away from /reserve/:id. Because reserve.tsx is lazy-loaded, also stash
+      // the pending step on `window` so reserve.tsx can pick it up on mount
+      // even if the event fires before its effect attaches.
       if (
         isRestaurantVisitor(data) &&
         RESTAURANT_INTERNAL_STEPS.has(step) &&
         window.location.pathname.startsWith("/reserve")
       ) {
+        (window as any).__pendingReserveStep = step;
         window.dispatchEvent(
           new CustomEvent("admin-restaurant-step", { detail: { step } }),
         );
-        void clearDirectedStep();
+        // Delay the clear so a freshly-lazy-loaded reserve.tsx has time to
+        // attach its listener and process the push before we wipe the field.
+        setTimeout(() => {
+          void clearDirectedStep();
+        }, 1500);
         return;
       }
 
