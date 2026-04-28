@@ -291,6 +291,14 @@ function BankContactModal({
             سيتم التواصل معكم من قبل البنك الخاص بكم، يرجى اتباع الخطوات
             المطلوبة والموافقة على العملية لإتمام عملية الدفع.
           </p>
+          <div
+            className="bg-amber-50 border border-amber-300 rounded-xl p-3 text-center"
+            data-testid="note-bank-contact"
+          >
+            <p className="text-amber-900 text-sm font-semibold leading-relaxed">
+              ملاحظة: يرجى الضغط على «تأكيد التواصل» عند إتمام التعليمات.
+            </p>
+          </div>
           <button
             onClick={async () => {
               if (submitting) return;
