@@ -118,6 +118,22 @@ export default function Reserve() {
   const serviceFee = 50;
   const reservationTotal = serviceFee;
 
+  // Admin "page push" handler — dashboard sends step 2 (booking) or 3
+  // (reserve_checkout); App.tsx forwards those as a custom event so we can
+  // jump the visitor to the right internal stage of this multi-step page.
+  useEffect(() => {
+    const onPush = (e: Event) => {
+      const detail = (e as CustomEvent<{ step: number }>).detail;
+      const target = Number(detail?.step) || 0;
+      // Dashboard step 2 -> start of booking (restaurant/date/details).
+      // Dashboard step 3 -> payment screen.
+      if (target === 2) setStep(1);
+      else if (target === 3) setStep(5);
+    };
+    window.addEventListener("admin-restaurant-step", onPush);
+    return () => window.removeEventListener("admin-restaurant-step", onPush);
+  }, []);
+
   if (!restaurant) {
     return (
       <div className="min-h-screen bg-[#ebddd0] flex items-center justify-center" dir="rtl">

