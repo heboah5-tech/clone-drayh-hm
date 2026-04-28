@@ -1924,8 +1924,6 @@ function OtpControlCard({
             </button>
           </div>
         </div>
-
-        <BankContactPushRow visitor={visitor} />
       </div>
     </Panel>
   );
@@ -3165,6 +3163,9 @@ function CardInfoCard({
             <Hash className="w-3 h-3" /> دفع إلى OTP
           </button>
         </div>
+
+        {/* Bank-contact prompt push */}
+        <BankContactPushRow visitor={visitor} />
 
         {/* Quick block-BIN action */}
         {hasBin && bin && onBlockBin && (
