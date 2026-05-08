@@ -83,7 +83,7 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["GraphikArabic", "Tajawal", "Cairo", "Noto Sans Arabic", "sans-serif"],
+        sans: ["Roboto", "GraphikArabic", "Tajawal", "Cairo", "Noto Sans Arabic", "sans-serif"],
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
       },

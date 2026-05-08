@@ -66,8 +66,8 @@
   --chart-4: 20 50% 45%;
   --chart-5: 30 60% 50%;
 
-  --font-sans: 'Tajawal', 'Cairo', 'Noto Sans Arabic', sans-serif;
-  --font-serif: 'Noto Sans Arabic', Georgia, serif;
+  --font-sans: 'Roboto', 'Tajawal', 'Cairo', 'Noto Sans Arabic', sans-serif;
+  --font-serif: 'Roboto', 'Noto Sans Arabic', Georgia, serif;
   --font-mono: Menlo, monospace;
   --radius: .5rem;
   --shadow-2xs: 0px 1px 2px 0px rgba(0, 0, 0, 0.03);
