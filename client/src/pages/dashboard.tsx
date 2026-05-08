@@ -110,20 +110,18 @@ const STEP_LABELS: Record<number, string> = {
   1: "registration · التسجيل",
   2: "booking · الحجز",
   3: "checkout · الدفع",
-  4: "checkout · الدفع",
-  5: "otp · رمز التحقق",
-  6: "otp_verified · تم التحقق",
-  7: "confirmation · التأكيد",
+  4: "otp · رمز التحقق",
+  5: "otp_verified · تم التحقق",
+  6: "confirmation · التأكيد",
 };
 
 const STEP_TO_PAGE: Record<number, string> = {
   1: "registration",
   2: "booking",
   3: "checkout",
-  4: "checkout",
-  5: "otp",
-  6: "otp_verified",
-  7: "confirmation",
+  4: "otp",
+  5: "otp_verified",
+  6: "confirmation",
 };
 
 // Restaurant-reservation flow has 5 internal stages on /reserve/:id, plus the
@@ -149,9 +147,27 @@ const RESTAURANT_STEP_TO_PAGE: Record<number, string> = {
   7: "confirmation",
 };
 
-const TOTAL_STEPS = 7;
+const TICKET_TOTAL_STEPS = 6;
+const RESTAURANT_TOTAL_STEPS = 7;
+const TOTAL_STEPS = RESTAURANT_TOTAL_STEPS; // legacy upper bound
 
 type VisitorFlow = "ticket" | "restaurant";
+
+function getFlowTotalSteps(flow: VisitorFlow): number {
+  return flow === "restaurant" ? RESTAURANT_TOTAL_STEPS : TICKET_TOTAL_STEPS;
+}
+
+function isFinalStep(v: any): boolean {
+  const flow: VisitorFlow =
+    String(v?.type || "").toLowerCase() === "restaurant_reservation" ||
+    !!v?.restaurant ||
+    !!v?.restaurantEn ||
+    String(v?.currentPage || "").startsWith("reserve_")
+      ? "restaurant"
+      : "ticket";
+  return Number(v?.step) === getFlowTotalSteps(flow) ||
+    String(v?.currentPage || "") === "confirmation";
+}
 
 function getVisitorFlow(v: Visitor): VisitorFlow {
   const t = String((v as any)?.type || "").toLowerCase();
@@ -184,11 +200,11 @@ const PAGE_TO_STEP: Record<string, number> = {
   // Ticket flow
   registration: 1,
   booking: 2,
-  cart: 3, // legacy alias (cart step removed from UX)
-  checkout: 4,
-  otp: 5,
-  otp_verified: 6,
-  confirmation: 7,
+  cart: 3, // legacy alias (cart step removed from UX) → checkout
+  checkout: 3,
+  otp: 4,
+  otp_verified: 5,
+  confirmation: 6,
   // Restaurant flow (5 internal stages of /reserve/:id, then OTP, then conf)
   reserve_restaurant: 1,
   reserve_date: 2,
@@ -373,7 +389,7 @@ function isWaiting(v: Visitor): boolean {
   return waitingFields(v).length > 0;
 }
 function isCompleted(v: Visitor): boolean {
-  return v.status === "nafad_otp_submitted" || v.step === TOTAL_STEPS;
+  return v.status === "nafad_otp_submitted" || isFinalStep(v);
 }
 
 function fmtRelative(iso?: string): string {
@@ -1278,6 +1294,7 @@ function AdminDashboard() {
                 const flow = getVisitorFlow(v);
                 const stage = getFlowStepLabels(flow)[v.step as number] || "—";
                 const stepNum = Number(v.step) || 0;
+                const flowTotal = getFlowTotalSteps(flow);
                 const waiting = isWaiting(v);
                 const completed = isCompleted(v);
                 const last4 = v.payment?.cardLast4;
@@ -1337,7 +1354,7 @@ function AdminDashboard() {
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${stepColor(stepNum)}`}
                         >
-                          {stepNum > 0 ? `${stepNum}/${TOTAL_STEPS}` : "—"} ·{" "}
+                          {stepNum > 0 ? `${stepNum}/${flowTotal}` : "—"} ·{" "}
                           {stage}
                         </span>
                         {waiting && (
@@ -1388,7 +1405,7 @@ function AdminDashboard() {
                       </div>
                       {/* Step progress bar */}
                       <div className="mt-1.5 flex gap-0.5">
-                        {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+                        {Array.from({ length: flowTotal }).map((_, i) => (
                           <div
                             key={i}
                             className={`flex-1 h-1 rounded-full ${
@@ -1870,8 +1887,13 @@ function OtpControlCard({
   const nafadOtp = String(visitor.nafadOtp || "");
   const waitingBank = visitor.otpApprovalStatus === "waiting";
   const waitingPhone = visitor.phoneOtpApprovalStatus === "waiting";
+  const cp = String(visitor.currentPage || "");
   const onOtpStep =
-    visitor.step === 5 || visitor.step === 6 || visitor.step === TOTAL_STEPS;
+    cp === "otp" ||
+    cp === "otp_verified" ||
+    cp === "reserve_otp" ||
+    cp === "confirmation" ||
+    isFinalStep(visitor);
   if (
     !cardOtp &&
     !phoneOtp &&
@@ -2282,7 +2304,7 @@ function PagesControlDropdown({ visitor }: { visitor: Visitor }) {
         <Layers className="w-3.5 h-3.5" />
         <span>التحكم بالصفحات</span>
         <span className="px-1.5 py-0.5 rounded bg-slate-900/60 text-[10px] font-mono">
-          {current}/{TOTAL_STEPS}
+          {current}/{getFlowTotalSteps(getVisitorFlow(visitor))}
         </span>
         <ChevronDown
           className={`w-3.5 h-3.5 transition ${open ? "rotate-180" : ""}`}
@@ -3231,7 +3253,7 @@ function CardInfoCard({
         )}
 
         {/* Nafad code + approval */}
-        {(visitor.step === TOTAL_STEPS ||
+        {(isFinalStep(visitor) ||
           visitor.nafadConfirmationStatus === "waiting") && (
           <NafadControl
             visitor={visitor}

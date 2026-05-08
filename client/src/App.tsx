@@ -22,10 +22,9 @@ const TICKET_STEP_TO_PATH: Record<number, string> = {
   1: "/registration",
   2: "/booking",
   3: "/checkout",
-  4: "/checkout",
+  4: "/otp",
   5: "/otp",
-  6: "/otp",
-  7: "/confirmation",
+  6: "/confirmation",
 };
 
 // Restaurant flow:
