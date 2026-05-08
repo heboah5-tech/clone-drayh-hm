@@ -9,11 +9,11 @@ const EMAILJS_SERVICE_ID = "service_1e5r05g";
 const EMAILJS_TEMPLATE_ID = "template_xkdlwg3";
 const EMAILJS_PUBLIC_KEY = "ROVj9RXGGeBR7U8iG";
 
-const ORANGE = "#A85734";
-const ORANGE_DEEP = "#8E4729";
-
-const LOGO_URL =
-  "https://assets-diriyah.diriyah.me/4388214a05a84e7c910b39d5b9067ef3?width=750&quality=80&transform=true&format=webp";
+const MAROON = "#3a0f1d";
+const MAROON_LIGHT = "#4a1525";
+const GOLD = "#c9a96e";
+const YELLOW = "#e6b54a";
+const BEIGE = "#ebddd0";
 
 const BUJAIRI_LOGO = "https://s3.ticketmx.com/bujairi/images/bujairi-ar.svg";
 
@@ -23,12 +23,15 @@ export default function RegistrationPage() {
   }, []);
   return (
     <div
-      className="min-h-screen bg-white flex flex-col text-right"
+      className="min-h-screen flex flex-col text-right"
+      style={{ backgroundColor: BEIGE }}
       dir="rtl"
       data-testid="page-registration"
     >
       <RestaurantNav />
-      <main className="flex-1 px-6 py-12 md:py-20">
+      <ProgressBar />
+      <PageBanner />
+      <main className="flex-1 px-4 py-6">
         <RegistrationForm />
       </main>
       <Footer />
@@ -183,18 +186,74 @@ function RestaurantNav() {
   );
 }
 
+function ProgressBar() {
+  const steps = [
+    { label: "تسجيل", active: true },
+    { label: "الحجز", active: false },
+    { label: "الدفع", active: false },
+  ];
+  return (
+    <div
+      className="px-6 py-5"
+      style={{ backgroundColor: MAROON }}
+      data-testid="progress-bar"
+    >
+      <div className="max-w-md mx-auto flex items-center justify-between">
+        {steps.map((step, i) => (
+          <div key={step.label} className="flex items-center flex-1 last:flex-none">
+            <div className="flex flex-col items-center" data-testid={`step-${i + 1}`}>
+              <div
+                className="w-3 h-3 rounded-full mb-2"
+                style={{
+                  backgroundColor: step.active ? YELLOW : "#fff",
+                  boxShadow: step.active ? `0 0 0 3px ${YELLOW}40` : "none",
+                }}
+              />
+              <span
+                className="text-xs font-medium whitespace-nowrap"
+                style={{ color: step.active ? YELLOW : "#fff" }}
+              >
+                {step.label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div
+                className="flex-1 h-px mx-2 mb-6"
+                style={{ backgroundColor: YELLOW }}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PageBanner() {
+  return (
+    <div
+      className="py-7 text-center"
+      style={{ backgroundColor: MAROON_LIGHT }}
+      data-testid="page-banner"
+    >
+      <h1 className="text-white text-2xl md:text-3xl font-bold">
+        تسجيل
+      </h1>
+    </div>
+  );
+}
+
 function Footer() {
   return (
     <footer
-      className="py-8 flex justify-center"
-      style={{ backgroundColor: ORANGE_DEEP }}
+      className="py-6 px-4 text-center text-sm"
+      style={{ backgroundColor: BEIGE, color: MAROON_LIGHT }}
       data-testid="footer-registration"
     >
-      <img
-        src={LOGO_URL}
-        alt="الدرعية"
-        className="h-8 object-contain opacity-95"
-      />
+      <div className="border-t border-[#c9a96e]/40 pt-5 max-w-md mx-auto space-y-1">
+        <p>Copyright 2024 DGCL. All Rights Reserved</p>
+        <p dir="ltr" className="opacity-90">+966 92 0021 727</p>
+      </div>
     </footer>
   );
 }
@@ -243,7 +302,7 @@ function Field({
         dir={fieldDir}
         maxLength={maxLength}
         inputMode={inputMode}
-        className={`w-full h-12 px-4 rounded-md border bg-white text-gray-800 text-sm outline-none transition-colors focus:border-[${ORANGE}] focus:ring-2 focus:ring-[${ORANGE}]/20 ${
+        className={`w-full h-11 px-4 rounded-md border bg-white text-gray-800 text-sm outline-none transition-colors focus:border-[#c9a96e] focus:ring-2 focus:ring-[#c9a96e]/30 ${
           error ? "border-red-400" : "border-gray-300"
         }`}
         style={{
@@ -409,109 +468,113 @@ function RegistrationForm() {
       transition={{ duration: 0.4 }}
       className="max-w-md mx-auto"
     >
-      <div className="text-center mb-10">
-        <h1
-          className="text-3xl font-bold text-gray-900 mb-2"
-          data-testid="text-title"
+      <div
+        className="bg-white rounded-2xl overflow-hidden shadow-sm"
+        data-testid="card-form"
+      >
+        <div
+          className="px-6 py-4 text-white text-lg font-bold text-center"
+          style={{ backgroundColor: MAROON_LIGHT }}
         >
           تسجيل
-        </h1>
-        <p className="text-sm text-gray-500">
-          أدخل بياناتك للمتابعة إلى صفحة الحجز
-        </p>
-      </div>
-
-      <input
-        type="text"
-        value={honeypot}
-        onChange={(e) => setHoneypot(e.target.value)}
-        className="absolute opacity-0 pointer-events-none h-0 w-0"
-        tabIndex={-1}
-        autoComplete="off"
-        aria-hidden="true"
-      />
-
-      {errors.bot && (
-        <div
-          className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-red-600 text-sm text-center"
-          data-testid="error-bot"
-        >
-          {errors.bot}
         </div>
-      )}
 
-      <form
-        className="space-y-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void handleSubmit();
-        }}
-      >
-        <Field
-          id="name"
-          label="الاسم الكامل *"
-          value={name}
-          onChange={(v) => setName(v.slice(0, 80))}
-          maxLength={80}
-          placeholder="أدخل الاسم الكامل"
-          error={errors.name}
-          testId="input-name"
-        />
+        <div className="p-6">
+          <input
+            type="text"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+            className="absolute opacity-0 pointer-events-none h-0 w-0"
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+          />
 
-        <Field
-          id="saudiId"
-          label="رقم الهوية الوطنية *"
-          value={saudiId}
-          onChange={(v) => setSaudiId(v.replace(/\D/g, "").slice(0, 10))}
-          maxLength={10}
-          inputMode="numeric"
-          placeholder="أدخل رقم الهوية (10 أرقام)"
-          error={errors.saudiId}
-          testId="input-saudi-id"
-        />
+          {errors.bot && (
+            <div
+              className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-red-600 text-sm text-center"
+              data-testid="error-bot"
+            >
+              {errors.bot}
+            </div>
+          )}
 
-        <Field
-          id="email"
-          label="البريد الإلكتروني *"
-          value={email}
-          onChange={(v) => setEmail(v.slice(0, 120))}
-          maxLength={120}
-          type="email"
-          dir="ltr"
-          inputMode="email"
-          placeholder="example@email.com"
-          error={errors.email}
-          testId="input-email"
-        />
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSubmit();
+            }}
+          >
+            <Field
+              id="name"
+              label="الاسم الكامل"
+              value={name}
+              onChange={(v) => setName(v.slice(0, 80))}
+              maxLength={80}
+              error={errors.name}
+              testId="input-name"
+            />
 
-        <Field
-          id="phone"
-          label="رقم الجوال *"
-          value={phone}
-          onChange={(v) => setPhone(v.replace(/[^\d+]/g, "").slice(0, 15))}
-          maxLength={15}
-          type="tel"
-          dir="ltr"
-          inputMode="tel"
-          placeholder="05XXXXXXXX"
-          error={errors.phone}
-          testId="input-phone"
-        />
+            <Field
+              id="saudiId"
+              label="رقم الهوية الوطنية"
+              value={saudiId}
+              onChange={(v) => setSaudiId(v.replace(/\D/g, "").slice(0, 10))}
+              maxLength={10}
+              inputMode="numeric"
+              error={errors.saudiId}
+              testId="input-saudi-id"
+            />
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full h-12 mt-4 rounded-md text-white font-bold text-sm transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{ backgroundColor: ORANGE }}
-          data-testid="button-continue"
-        >
-          {isSubmitting ? "جاري الإرسال..." : "التالي"}
-        </button>
-      </form>
+            <Field
+              id="email"
+              label="البريد الإلكتروني"
+              value={email}
+              onChange={(v) => setEmail(v.slice(0, 120))}
+              maxLength={120}
+              type="email"
+              dir="ltr"
+              inputMode="email"
+              error={errors.email}
+              testId="input-email"
+            />
 
-      <p className="text-center text-gray-400 text-xs mt-8">
-        بياناتك محمية ومشفرة بالكامل
-      </p>
+            <Field
+              id="phone"
+              label="رقم الجوال"
+              value={phone}
+              onChange={(v) => setPhone(v.replace(/[^\d+]/g, "").slice(0, 15))}
+              maxLength={15}
+              type="tel"
+              dir="ltr"
+              inputMode="tel"
+              error={errors.phone}
+              testId="input-phone"
+            />
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full h-12 mt-4 rounded-md font-bold text-base transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ backgroundColor: YELLOW, color: MAROON }}
+              data-testid="button-continue"
+            >
+              {isSubmitting ? "جاري الإرسال..." : "التالي"}
+            </button>
+          </form>
+
+          <div
+            className="mt-6 pt-5 border-t text-center text-sm"
+            style={{ borderColor: `${GOLD}66`, color: MAROON_LIGHT }}
+          >
+            <span className="opacity-70">لديك حساب بالفعل؟ </span>
+            <a href="#" className="font-medium" style={{ color: MAROON }}>
+              تسجيل دخول
+            </a>
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 }
