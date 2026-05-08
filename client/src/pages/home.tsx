@@ -12,15 +12,17 @@ const LOGO_URL =
 const HERO_IMAGE_URL =
   "https://assets-diriyah.diriyah.me/37694b856a414197ac77a4d1ea9ce588";
 
-// Darker coral so white CTA text passes WCAG AA contrast (≥ 4.5:1 on accent).
-const ACCENT = "#b85a2e";
-const ACCENT_DARK = "#9b4a24";
+// Palette taken from the Wix reference (matalalbijirifealtar):
+//   CTA coral  #C26C48   olive  #686F4C   deep olive  #4B5037
+//   sand bg   #F0EDE4    cream card  #FFFFFF    text grey  #323232
+const ACCENT = "#C26C48";
+const ACCENT_DARK = "#A85734";
 
 function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 left-0 right-0 z-50 bg-[#1a0a10]/95 backdrop-blur">
+    <header className="sticky top-0 left-0 right-0 z-50 bg-[#2F2C24]/95 backdrop-blur">
       <div className="flex items-center justify-between px-4 py-3">
         <button
           data-testid="button-menu"
@@ -40,7 +42,7 @@ function Header() {
 
       {menuOpen && (
         <nav
-          className="bg-[#4a1525] border-t border-white/10 px-5 py-3 space-y-1"
+          className="bg-[#4B5037] border-t border-white/10 px-5 py-3 space-y-1"
           data-testid="nav-mobile-menu"
         >
           {[
@@ -113,7 +115,7 @@ function SubNav() {
   ];
   return (
     <nav
-      className="bg-[#1a0a10] border-y border-white/5"
+      className="bg-[#2F2C24] border-y border-white/5"
       data-testid="nav-sub"
     >
       <div className="flex items-center justify-center gap-4 px-3 py-2.5 overflow-x-auto">
@@ -150,7 +152,7 @@ function SeasonSection() {
   return (
     <section
       id="season"
-      className="bg-[#f5efe6] pt-6 pb-3 px-4"
+      className="bg-[#F0EDE4] pt-6 pb-3 px-4"
       data-testid="section-season"
     >
       <div className="max-w-md mx-auto">
@@ -166,13 +168,13 @@ function SeasonSection() {
 
           <div className="p-5">
             <h3
-              className="text-[#4a1525] font-bold text-lg mb-2"
+              className="text-[#323232] font-bold text-lg mb-2"
               data-testid="text-season-title"
             >
               موسم الدرعية 26
             </h3>
             <p
-              className="text-[#7a6b5f] text-[12px] leading-relaxed mb-5"
+              className="text-[#6b6b6b] text-[12px] leading-relaxed mb-5"
               data-testid="text-season-description"
             >
               يبدأ موسم الدرعية بفعاليات وتجارب ثرية تبدأ من أول فبراير وحتى آخر
@@ -205,12 +207,12 @@ function RestaurantSection() {
   return (
     <section
       id="restaurants"
-      className="bg-[#f5efe6] pt-3 pb-3 px-4"
+      className="bg-[#F0EDE4] pt-3 pb-3 px-4"
       data-testid="section-restaurants"
     >
       <div className="max-w-md mx-auto">
         <h3
-          className="text-center text-[#4a1525] text-lg font-bold mb-4"
+          className="text-center text-[#323232] text-lg font-bold mb-4"
           data-testid="text-restaurants-heading"
         >
           حجز مطاعم مطل البجيري
@@ -227,7 +229,7 @@ function RestaurantSection() {
 
           <div className="p-5">
             <p
-              className="text-[#7a6b5f] text-[12px] leading-relaxed mb-4"
+              className="text-[#6b6b6b] text-[12px] leading-relaxed mb-4"
               data-testid="text-restaurant-desc"
             >
               أكثر من ١٥ مطعم عالمي وسعودي في قلب الدرعية التاريخية، احجز طاولتك
@@ -269,20 +271,20 @@ function ExploreSection() {
           alt="استكشف الدرعية"
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-[#1a0a10]/85" />
+        <div className="absolute inset-0 bg-[#2F2C24]/85" />
       </div>
 
       <div className="relative z-10 max-w-md mx-auto text-center">
         <div className="mb-5 flex justify-center">
-          <div className="px-8 py-3 border border-[#c9a96e]/40">
+          <div className="px-8 py-3 border border-[#C26C48]/50">
             <span
-              className="text-[#c9a96e] text-xl font-bold tracking-[0.2em] block leading-tight"
+              className="text-[#C26C48] text-xl font-bold tracking-[0.2em] block leading-tight"
               style={{ fontFamily: "serif" }}
               data-testid="text-bujairi-logo"
             >
               BUJAIRI
             </span>
-            <span className="text-[#c9a96e]/60 text-[9px] tracking-[0.35em] block mt-1">
+            <span className="text-[#C26C48]/70 text-[9px] tracking-[0.35em] block mt-1">
               TERRACE
             </span>
           </div>
@@ -336,9 +338,9 @@ function LocationCard() {
     >
       <div className="flex items-center gap-2.5 mb-3">
         <MapPin className="w-4 h-4" style={{ color: ACCENT }} />
-        <h3 className="text-[#4a1525] font-bold text-sm">الموقع</h3>
+        <h3 className="text-[#323232] font-bold text-sm">الموقع</h3>
       </div>
-      <p className="text-[#7a6b5f] text-[12px] leading-relaxed">
+      <p className="text-[#6b6b6b] text-[12px] leading-relaxed">
         حي البجيري، الدرعية
         <br />
         الرياض - المملكة العربية السعودية
@@ -355,13 +357,13 @@ function ContactCard() {
     >
       <div className="flex items-center gap-2.5 mb-3">
         <Phone className="w-4 h-4" style={{ color: ACCENT }} />
-        <h3 className="text-[#4a1525] font-bold text-sm">للتواصل</h3>
+        <h3 className="text-[#323232] font-bold text-sm">للتواصل</h3>
       </div>
-      <p className="text-[#7a6b5f] text-[12px] leading-relaxed flex items-center gap-2 mb-1.5">
-        <Phone className="w-3 h-3 text-[#a09488]" /> 920000810
+      <p className="text-[#6b6b6b] text-[12px] leading-relaxed flex items-center gap-2 mb-1.5">
+        <Phone className="w-3 h-3 text-[#8F8F8F]" /> 920000810
       </p>
-      <p className="text-[#7a6b5f] text-[12px] leading-relaxed flex items-center gap-2">
-        <Mail className="w-3 h-3 text-[#a09488]" /> info@diriyah.sa
+      <p className="text-[#6b6b6b] text-[12px] leading-relaxed flex items-center gap-2">
+        <Mail className="w-3 h-3 text-[#8F8F8F]" /> info@diriyah.sa
       </p>
     </div>
   );
@@ -380,7 +382,7 @@ function HoursCard() {
     >
       <div className="flex items-center gap-2.5 mb-3">
         <Clock className="w-4 h-4" style={{ color: ACCENT }} />
-        <h3 className="text-[#4a1525] font-bold text-sm">ساعات العمل</h3>
+        <h3 className="text-[#323232] font-bold text-sm">ساعات العمل</h3>
       </div>
       <div className="space-y-2">
         {rows.map(([day, hours], i) => (
@@ -388,8 +390,8 @@ function HoursCard() {
             key={i}
             className="flex justify-between items-center text-[12px]"
           >
-            <span className="text-[#7a6b5f]">{day}</span>
-            <span className="text-[#4a1525] font-medium" dir="ltr">
+            <span className="text-[#6b6b6b]">{day}</span>
+            <span className="text-[#323232] font-medium" dir="ltr">
               {hours}
             </span>
           </div>
@@ -403,7 +405,7 @@ function InfoSection() {
   return (
     <section
       id="info"
-      className="bg-[#f5efe6] pt-6 pb-6 px-4 space-y-3"
+      className="bg-[#F0EDE4] pt-6 pb-6 px-4 space-y-3"
       data-testid="section-info"
     >
       <div className="max-w-md mx-auto space-y-3">
@@ -418,15 +420,15 @@ function InfoSection() {
 function MapStrip() {
   return (
     <section
-      className="relative h-40 bg-[#e2d5c3]"
+      className="relative h-40 bg-[#E6E2D2]"
       data-testid="section-map"
     >
       <div
         className="absolute inset-0"
         style={{
           background: `
-            repeating-linear-gradient(0deg, transparent, transparent 19px, #c9b89e 19px, #c9b89e 20px),
-            repeating-linear-gradient(90deg, transparent, transparent 19px, #c9b89e 19px, #c9b89e 20px)
+            repeating-linear-gradient(0deg, transparent, transparent 19px, #C9C3A8 19px, #C9C3A8 20px),
+            repeating-linear-gradient(90deg, transparent, transparent 19px, #C9C3A8 19px, #C9C3A8 20px)
           `,
           opacity: 0.2,
         }}
@@ -439,7 +441,7 @@ function MapStrip() {
           <MapPin className="w-5 h-5 text-white" fill="white" />
         </div>
         <div className="mt-2 bg-white/90 backdrop-blur-sm px-3 py-1 rounded shadow-sm">
-          <p className="text-[#4a1525] font-bold text-[10px]">الدرعية</p>
+          <p className="text-[#323232] font-bold text-[10px]">الدرعية</p>
         </div>
       </div>
     </section>
@@ -448,7 +450,7 @@ function MapStrip() {
 
 function Footer() {
   return (
-    <footer className="bg-[#1a0a10] py-6 px-4" data-testid="section-footer">
+    <footer className="bg-[#2F2C24] py-6 px-4" data-testid="section-footer">
       <div className="max-w-md mx-auto text-center">
         <img
           src={LOGO_URL}
@@ -465,7 +467,7 @@ function Footer() {
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[#f5efe6]" data-testid="page-home">
+    <div className="min-h-screen bg-[#F0EDE4]" data-testid="page-home">
       <Header />
       <HeroImage />
       <SeasonSection />
