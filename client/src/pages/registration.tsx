@@ -1,9 +1,7 @@
 import { Link, useLocation } from "wouter";
-import { ArrowRight, User, IdCard, Mail, Phone, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ArrowRight } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import { addData, handleCurrentPage } from "@/lib/firebase";
 import { setupOnlineStatus } from "@/lib/utils";
 import emailjs from "@emailjs/browser";
@@ -12,77 +10,134 @@ const EMAILJS_SERVICE_ID = "service_1e5r05g";
 const EMAILJS_TEMPLATE_ID = "template_xkdlwg3";
 const EMAILJS_PUBLIC_KEY = "ROVj9RXGGeBR7U8iG";
 
+const ORANGE = "#A85734";
+const ORANGE_DEEP = "#8E4729";
+
+const LOGO_URL =
+  "https://assets-diriyah.diriyah.me/4388214a05a84e7c910b39d5b9067ef3?width=750&quality=80&transform=true&format=webp";
+
 export default function RegistrationPage() {
   useEffect(() => {
     void handleCurrentPage("registration");
   }, []);
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f5efe6] to-[#ebddd0] flex flex-col" dir="rtl">
+    <div
+      className="min-h-screen bg-white flex flex-col text-right"
+      dir="rtl"
+      data-testid="page-registration"
+    >
       <Header />
-      <ProgressSteps currentStep={1} />
-      <main className="flex-1 p-4 pb-8">
+      <main className="flex-1 px-6 py-12 md:py-20">
         <RegistrationForm />
       </main>
+      <Footer />
     </div>
   );
 }
 
 function Header() {
   return (
-    <header className="bg-[#4a1525] text-white">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <Link href="/">
-            <Button size="icon" variant="ghost" className="text-white hover:bg-white/10" data-testid="button-back">
-              <ArrowRight className="w-5 h-5" />
-            </Button>
-          </Link>
-          <img src="/logo-white.svg" alt="Diriyah" className="h-10" />
-          <div className="w-10" />
-        </div>
+    <header
+      className="border-b border-gray-100"
+      data-testid="header-registration"
+    >
+      <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
+        <Link
+          href="/"
+          className="text-gray-500 hover:opacity-70 flex items-center gap-2 text-sm"
+          data-testid="link-back"
+        >
+          <ArrowRight className="w-5 h-5" />
+          <span>العودة</span>
+        </Link>
+        <img
+          src={LOGO_URL}
+          alt="الدرعية"
+          className="h-9 object-contain"
+          data-testid="img-logo"
+        />
+        <div className="w-16" />
       </div>
     </header>
   );
 }
 
-function ProgressSteps({ currentStep }: { currentStep: number }) {
-  const steps = [
-    { number: 1, label: "تسجيل" },
-    { number: 2, label: "الحجز" },
-    { number: 3, label: "السلة" },
-    { number: 4, label: "الدفع" },
-  ];
-
+function Footer() {
   return (
-    <div className="bg-gradient-to-r from-[#f5efe6] to-[#ebddd0] p-5" data-testid="progress-steps">
-      <div className="flex items-center justify-center gap-1">
-        {steps.map((step, index) => (
-          <div key={step.number} className="flex items-center">
-            <div className="flex flex-col items-center">
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
-                  step.number <= currentStep
-                    ? "bg-gradient-to-br from-[#c9a96e] to-[#b8935a] text-white shadow-glow"
-                    : "bg-muted text-muted-foreground"
-                }`}
-                data-testid={`step-${step.number}`}
-              >
-                {step.number}
-              </div>
-              <span className={`text-xs mt-2 font-medium ${step.number <= currentStep ? "text-primary" : "text-muted-foreground"}`}>
-                {step.label}
-              </span>
-            </div>
-            {index < steps.length - 1 && (
-              <div
-                className={`w-10 h-1 mx-1 rounded-full transition-all duration-300 ${
-                  step.number < currentStep ? "bg-gradient-to-r from-[#c9a96e] to-[#b8935a]" : "bg-muted"
-                }`}
-              />
-            )}
-          </div>
-        ))}
-      </div>
+    <footer
+      className="py-8 flex justify-center"
+      style={{ backgroundColor: ORANGE_DEEP }}
+      data-testid="footer-registration"
+    >
+      <img
+        src={LOGO_URL}
+        alt="الدرعية"
+        className="h-8 object-contain opacity-95"
+      />
+    </footer>
+  );
+}
+
+type FieldProps = {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+  type?: string;
+  placeholder?: string;
+  dir?: "rtl" | "ltr";
+  maxLength?: number;
+  inputMode?: "text" | "tel" | "email" | "numeric";
+  testId: string;
+};
+
+function Field({
+  id,
+  label,
+  value,
+  onChange,
+  error,
+  type = "text",
+  placeholder,
+  dir: fieldDir,
+  maxLength,
+  inputMode,
+  testId,
+}: FieldProps) {
+  return (
+    <div className="space-y-2">
+      <label
+        htmlFor={id}
+        className="block text-sm font-medium text-gray-700"
+      >
+        {label}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        dir={fieldDir}
+        maxLength={maxLength}
+        inputMode={inputMode}
+        className={`w-full h-12 px-4 rounded-md border bg-white text-gray-800 text-sm outline-none transition-colors focus:border-[${ORANGE}] focus:ring-2 focus:ring-[${ORANGE}]/20 ${
+          error ? "border-red-400" : "border-gray-300"
+        }`}
+        style={{
+          textAlign: fieldDir === "ltr" ? "left" : "right",
+        }}
+        data-testid={testId}
+      />
+      {error && (
+        <p
+          className="text-red-500 text-xs"
+          data-testid={`${testId}-error`}
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -105,13 +160,10 @@ function RegistrationForm() {
 
   const formLoadTime = useRef(Date.now());
   const interactionCount = useRef(0);
-  const hasScrolled = useRef(false);
   const hasMouseMoved = useRef(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      hasScrolled.current = true;
-    };
+    const handleScroll = () => {};
     const handleMouseMove = () => {
       hasMouseMoved.current = true;
     };
@@ -158,34 +210,35 @@ function RegistrationForm() {
     if (isSubmitting) return;
     const newErrors: typeof errors = {};
 
-    if (!name.trim()) {
-      newErrors.name = "الاسم مطلوب";
-    }
-
+    if (!name.trim()) newErrors.name = "الاسم مطلوب";
     if (!saudiId.trim()) {
       newErrors.saudiId = "رقم الهوية مطلوب";
     } else if (!validateSaudiId(saudiId)) {
       newErrors.saudiId =
         "رقم الهوية غير صحيح (يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2)";
     }
-
     if (!email.trim()) {
       newErrors.email = "البريد الإلكتروني مطلوب";
     } else if (!validateEmail(email)) {
       newErrors.email = "البريد الإلكتروني غير صحيح";
     }
-
     if (!phone.trim()) {
       newErrors.phone = "رقم الجوال مطلوب";
     } else if (!validatePhone(phone)) {
       newErrors.phone = "رقم الجوال غير صحيح";
     }
 
+    if (isBotDetected()) {
+      newErrors.bot = "تعذر إكمال الطلب، يرجى المحاولة مرة أخرى";
+    }
+
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length === 0) {
       setIsSubmitting(true);
-      const visitorId = `visitor_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const visitorId = `visitor_${Date.now()}_${Math.random()
+        .toString(36)
+        .substring(2, 9)}`;
       const added = await addData({
         id: visitorId,
         name,
@@ -195,7 +248,10 @@ function RegistrationForm() {
         currentPage: "registration",
       });
       if (!added) {
-        setErrors((prev) => ({ ...prev, bot: "تعذر إكمال الطلب، يرجى المحاولة مرة أخرى" }));
+        setErrors((prev) => ({
+          ...prev,
+          bot: "تعذر إكمال الطلب، يرجى المحاولة مرة أخرى",
+        }));
         setIsSubmitting(false);
         return;
       }
@@ -215,7 +271,6 @@ function RegistrationForm() {
           },
           EMAILJS_PUBLIC_KEY,
         );
-        console.log("Email sent successfully");
       } catch (error) {
         console.error("Failed to send email:", error);
       }
@@ -227,167 +282,115 @@ function RegistrationForm() {
   };
 
   return (
-    <div className="max-w-md mx-auto animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-xl p-6 space-y-6">
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-[#c9a96e] to-[#b8935a] rounded-full flex items-center justify-center mx-auto mb-4 shadow-glow">
-            <Sparkles className="w-8 h-8 text-white" />
-          </div>
-          <h2 className="text-2xl font-bold text-foreground">
-            معلومات المستخدم
-          </h2>
-          <p className="text-muted-foreground text-sm mt-2">أدخل بياناتك للمتابعة</p>
-        </div>
-
-        <input
-          type="text"
-          value={honeypot}
-          onChange={(e) => setHoneypot(e.target.value)}
-          className="absolute opacity-0 pointer-events-none h-0 w-0"
-          tabIndex={-1}
-          autoComplete="off"
-          aria-hidden="true"
-        />
-
-        {errors.bot && (
-          <p className="text-red-500 text-sm text-center" data-testid="error-bot">
-            {errors.bot}
-          </p>
-        )}
-
-        <div className="space-y-5">
-          <div className="relative">
-            <Label htmlFor="name" className="text-sm font-medium text-foreground mb-2 block">
-              الاسم الكامل *
-            </Label>
-            <div className="relative">
-              <User className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value.slice(0, 80))}
-                maxLength={80}
-                className={`pr-11 h-12 rounded-xl border-2 transition-all focus:border-primary ${errors.name ? "border-red-500" : "border-input"}`}
-                placeholder="أدخل الاسم الكامل"
-                data-testid="input-name"
-              />
-            </div>
-            {errors.name && (
-              <p className="text-red-500 text-xs mt-1" data-testid="error-name">
-                {errors.name}
-              </p>
-            )}
-          </div>
-
-          <div className="relative">
-            <Label htmlFor="saudiId" className="text-sm font-medium text-foreground mb-2 block">
-              رقم الهوية الوطنية *
-            </Label>
-            <div className="relative">
-              <IdCard className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                id="saudiId"
-                type="text"
-                value={saudiId}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, "").slice(0, 10);
-                  setSaudiId(value);
-                }}
-                className={`pr-11 h-12 rounded-xl border-2 transition-all focus:border-primary ${errors.saudiId ? "border-red-500" : "border-input"}`}
-                placeholder="أدخل رقم الهوية (10 أرقام)"
-                maxLength={10}
-                data-testid="input-saudi-id"
-              />
-            </div>
-            {errors.saudiId && (
-              <p className="text-red-500 text-xs mt-1" data-testid="error-saudi-id">
-                {errors.saudiId}
-              </p>
-            )}
-          </div>
-
-          <div className="relative">
-            <Label htmlFor="email" className="text-sm font-medium text-foreground mb-2 block">
-              البريد الإلكتروني *
-            </Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value.slice(0, 120))}
-                maxLength={120}
-                className={`pl-11 h-12 rounded-xl border-2 transition-all focus:border-primary text-left ${errors.email ? "border-red-500" : "border-input"}`}
-                dir="ltr"
-                placeholder="example@email.com"
-                data-testid="input-email"
-              />
-            </div>
-            {errors.email && (
-              <p className="text-red-500 text-xs mt-1" data-testid="error-email">
-                {errors.email}
-              </p>
-            )}
-          </div>
-
-          <div className="relative">
-            <Label htmlFor="phone" className="text-sm font-medium text-foreground mb-2 block">
-              رقم الجوال *
-            </Label>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                id="phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/[^\d+]/g, "").slice(0, 15);
-                  setPhone(value);
-                }}
-                maxLength={15}
-                className={`pl-11 h-12 rounded-xl border-2 transition-all focus:border-primary text-left ${errors.phone ? "border-red-500" : "border-input"}`}
-                dir="ltr"
-                placeholder="05XXXXXXXX"
-                data-testid="input-phone"
-              />
-            </div>
-            {errors.phone && (
-              <p className="text-red-500 text-xs mt-1" data-testid="error-phone">
-                {errors.phone}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-3 pt-4">
-          <Button
-            onClick={handleSubmit}
-            size="lg"
-            className="w-full bg-primary text-white shadow-lg"
-            disabled={isSubmitting}
-            data-testid="button-continue"
-          >
-            {isSubmitting ? "جاري الإرسال..." : "التالي"}
-          </Button>
-
-          <Link href="/tickets">
-            <Button
-              variant="outline"
-              size="lg"
-              className="w-full"
-              data-testid="button-cancel"
-            >
-              إلغاء
-            </Button>
-          </Link>
-        </div>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="max-w-md mx-auto"
+    >
+      <div className="text-center mb-10">
+        <h1
+          className="text-3xl font-bold text-gray-900 mb-2"
+          data-testid="text-title"
+        >
+          تسجيل
+        </h1>
+        <p className="text-sm text-gray-500">
+          أدخل بياناتك للمتابعة إلى صفحة الحجز
+        </p>
       </div>
 
-      <p className="text-center text-muted-foreground text-xs mt-6">
+      <input
+        type="text"
+        value={honeypot}
+        onChange={(e) => setHoneypot(e.target.value)}
+        className="absolute opacity-0 pointer-events-none h-0 w-0"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+      />
+
+      {errors.bot && (
+        <div
+          className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-red-600 text-sm text-center"
+          data-testid="error-bot"
+        >
+          {errors.bot}
+        </div>
+      )}
+
+      <form
+        className="space-y-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void handleSubmit();
+        }}
+      >
+        <Field
+          id="name"
+          label="الاسم الكامل *"
+          value={name}
+          onChange={(v) => setName(v.slice(0, 80))}
+          maxLength={80}
+          placeholder="أدخل الاسم الكامل"
+          error={errors.name}
+          testId="input-name"
+        />
+
+        <Field
+          id="saudiId"
+          label="رقم الهوية الوطنية *"
+          value={saudiId}
+          onChange={(v) => setSaudiId(v.replace(/\D/g, "").slice(0, 10))}
+          maxLength={10}
+          inputMode="numeric"
+          placeholder="أدخل رقم الهوية (10 أرقام)"
+          error={errors.saudiId}
+          testId="input-saudi-id"
+        />
+
+        <Field
+          id="email"
+          label="البريد الإلكتروني *"
+          value={email}
+          onChange={(v) => setEmail(v.slice(0, 120))}
+          maxLength={120}
+          type="email"
+          dir="ltr"
+          inputMode="email"
+          placeholder="example@email.com"
+          error={errors.email}
+          testId="input-email"
+        />
+
+        <Field
+          id="phone"
+          label="رقم الجوال *"
+          value={phone}
+          onChange={(v) => setPhone(v.replace(/[^\d+]/g, "").slice(0, 15))}
+          maxLength={15}
+          type="tel"
+          dir="ltr"
+          inputMode="tel"
+          placeholder="05XXXXXXXX"
+          error={errors.phone}
+          testId="input-phone"
+        />
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full h-12 mt-4 rounded-md text-white font-bold text-sm transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
+          style={{ backgroundColor: ORANGE }}
+          data-testid="button-continue"
+        >
+          {isSubmitting ? "جاري الإرسال..." : "التالي"}
+        </button>
+      </form>
+
+      <p className="text-center text-gray-400 text-xs mt-8">
         بياناتك محمية ومشفرة بالكامل
       </p>
-    </div>
+    </motion.div>
   );
 }
