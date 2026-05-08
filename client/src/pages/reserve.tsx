@@ -7,54 +7,16 @@ import { setupOnlineStatus } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProgressBar } from "@/components/bujairi-header";
 
 type Step = 1 | 2 | 3 | 4;
 
-function StepIndicator({ current }: { current: Step }) {
-  const steps = [
-    { number: 1 as Step, label: "الموعد" },
-    { number: 2 as Step, label: "البيانات" },
-    { number: 3 as Step, label: "الفاتورة" },
-    { number: 4 as Step, label: "الدفع" },
-  ];
-
-  return (
-    <div className="bg-[#3a0f1d] px-4 py-4" data-testid="step-indicator">
-      <div className="flex items-center justify-center gap-0.5 max-w-md mx-auto">
-        {steps.map((step, index) => (
-          <div key={step.number} className="flex items-center">
-            <div className="flex flex-col items-center">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
-                  step.number < current
-                    ? "bg-[#c9a96e] text-white"
-                    : step.number === current
-                    ? "bg-white text-[#4a1525] shadow-lg"
-                    : "bg-white/20 text-white/50"
-                }`}
-                data-testid={`step-${step.number}`}
-              >
-                {step.number < current ? "✓" : step.number}
-              </div>
-              <span className={`text-[8px] mt-1 font-medium whitespace-nowrap ${
-                step.number <= current ? "text-white" : "text-white/40"
-              }`}>
-                {step.label}
-              </span>
-            </div>
-            {index < steps.length - 1 && (
-              <div
-                className={`w-5 h-0.5 mx-0.5 rounded-full transition-all ${
-                  step.number < current ? "bg-[#c9a96e]" : "bg-white/20"
-                }`}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+const RESERVE_STEPS = [
+  { n: 1, label: "الموعد" },
+  { n: 2, label: "البيانات" },
+  { n: 3, label: "الفاتورة" },
+  { n: 4, label: "الدفع" },
+];
 
 const validateLuhn = (cardNum: string): boolean => {
   const digits = cardNum.replace(/\s/g, "");
@@ -397,7 +359,7 @@ export default function Reserve() {
         </div>
       </div>
 
-      <StepIndicator current={step} />
+      <ProgressBar current={step} steps={RESERVE_STEPS} />
 
       <div className="max-w-lg mx-auto px-4 py-6">
         {step === 1 && (

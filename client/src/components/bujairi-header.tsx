@@ -152,8 +152,14 @@ export function RestaurantNav({ active }: { active?: string } = {}) {
   );
 }
 
-export function ProgressBar({ current }: { current: 1 | 2 | 3 }) {
-  const steps = [
+export function ProgressBar({
+  current,
+  steps,
+}: {
+  current: number;
+  steps?: { n: number; label: string }[];
+}) {
+  const resolvedSteps = steps ?? [
     { n: 1, label: "تسجيل" },
     { n: 2, label: "الحجز" },
     { n: 3, label: "الدفع" },
@@ -165,7 +171,7 @@ export function ProgressBar({ current }: { current: 1 | 2 | 3 }) {
       data-testid="progress-bar"
     >
       <div className="max-w-md mx-auto flex items-center justify-between">
-        {steps.map((step, i) => {
+        {resolvedSteps.map((step, i) => {
           const active = step.n === current;
           const done = step.n < current;
           return (
@@ -191,7 +197,7 @@ export function ProgressBar({ current }: { current: 1 | 2 | 3 }) {
                   {step.label}
                 </span>
               </div>
-              {i < steps.length - 1 && (
+              {i < resolvedSteps.length - 1 && (
                 <div
                   className="flex-1 h-px mx-2 mb-6"
                   style={{ backgroundColor: YELLOW }}
