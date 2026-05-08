@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Menu, X, MapPin, Clock, LocateIcon } from "lucide-react";
+import { Menu, X, MapPin, Clock, Phone, Mail } from "lucide-react";
 import { Link } from "wouter";
 
 import seasonImage from "@assets/8ae74984605c4076bfde52a6a35b8bca_1772291393428.webp";
@@ -9,17 +9,19 @@ import exploreImage from "@assets/a49e06e53a5946eca35727c91bc458c8.webp";
 const LOGO_URL =
   "https://assets-diriyah.diriyah.me/4388214a05a84e7c910b39d5b9067ef3?width=750&quality=80&transform=true&format=webp";
 
-const HERO_VIDEO_URL =
-  "https://assets.diriyah.me/videos/AR+03+390+X+550+Wide.mp4";
-const HERO_POSTER_URL =
+const HERO_IMAGE_URL =
   "https://assets-diriyah.diriyah.me/37694b856a414197ac77a4d1ea9ce588";
+
+// Darker coral so white CTA text passes WCAG AA contrast (≥ 4.5:1 on accent).
+const ACCENT = "#b85a2e";
+const ACCENT_DARK = "#9b4a24";
 
 function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50">
-      <div className="flex items-center justify-between p-4 h-12 m-3">
+    <header className="sticky top-0 left-0 right-0 z-50 bg-[#1a0a10]/95 backdrop-blur">
+      <div className="flex items-center justify-between px-4 py-3">
         <button
           data-testid="button-menu"
           onClick={() => setMenuOpen(!menuOpen)}
@@ -30,16 +32,10 @@ function Header() {
         <img
           src={LOGO_URL}
           alt="الدرعية"
-          className="h-14  object-contain"
+          className="h-10 object-contain"
           data-testid="img-logo"
         />
-        <img
-          src={LOGO_URL}
-          alt="الدرعية"
-          className="h-6 object-contain opacity-0"
-          data-testid="img-logo"
-        />
-        <LocateIcon />
+        <div className="w-7" />
       </div>
 
       {menuOpen && (
@@ -47,115 +43,106 @@ function Header() {
           className="bg-[#4a1525] border-t border-white/10 px-5 py-3 space-y-1"
           data-testid="nav-mobile-menu"
         >
-          <a
-            href="#hero"
-            onClick={() => setMenuOpen(false)}
-            className="block text-white/80 text-sm py-2.5 border-b border-white/5"
-            data-testid="link-home"
-          >
-            الرئيسية
-          </a>
-          <a
-            href="#season"
-            onClick={() => setMenuOpen(false)}
-            className="block text-white/80 text-sm py-2.5 border-b border-white/5"
-            data-testid="link-season"
-          >
-            موسم الدرعية
-          </a>
-          <a
-            href="#restaurants"
-            onClick={() => setMenuOpen(false)}
-            className="block text-white/80 text-sm py-2.5 border-b border-white/5"
-            data-testid="link-restaurants"
-          >
-            المطاعم
-          </a>
-          <a
-            href="#explore"
-            onClick={() => setMenuOpen(false)}
-            className="block text-white/80 text-sm py-2.5 border-b border-white/5"
-            data-testid="link-explore"
-          >
-            استكشف
-          </a>
-          <a
-            href="#info"
-            onClick={() => setMenuOpen(false)}
-            className="block text-white/80 text-sm py-2.5"
-            data-testid="link-info"
-          >
-            معلومات
-          </a>
+          {[
+            { href: "#hero", label: "الرئيسية", id: "home" },
+            { href: "#season", label: "موسم الدرعية", id: "season" },
+            { href: "#restaurants", label: "المطاعم", id: "restaurants" },
+            { href: "#explore", label: "استكشف", id: "explore" },
+            { href: "#info", label: "معلومات", id: "info" },
+          ].map((item) => (
+            <a
+              key={item.id}
+              href={item.href}
+              onClick={() => setMenuOpen(false)}
+              className="block text-white/80 text-sm py-2.5 border-b border-white/5 last:border-b-0"
+              data-testid={`link-${item.id}`}
+            >
+              {item.label}
+            </a>
+          ))}
         </nav>
       )}
     </header>
   );
 }
 
-function HeroVideo() {
+function HeroImage() {
   return (
     <section
       id="hero"
-      className="relative w-full h-screen overflow-hidden"
+      className="relative w-full overflow-hidden"
       data-testid="section-hero"
     >
-      <div className="absolute inset-0">
-        <video
-          src={HERO_VIDEO_URL}
-          preload="auto"
-          autoPlay
-          loop
-          muted
-          playsInline
-          poster={HERO_POSTER_URL}
-          className="w-full h-full object-cover scale-105"
-          data-testid="video-hero"
+      <div className="relative h-[260px] md:h-[360px] overflow-hidden">
+        <img
+          src={HERO_IMAGE_URL}
+          alt="مطل البجيري"
+          className="w-full h-full object-cover"
+          data-testid="img-hero"
         />
-      </div>
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/60" />
 
-      <div className="absolute inset-0 bg-gradient-to-t from-[#1a0a10]/80 via-[#1a0a10]/20 to-[#1a0a10]/10" />
-      <div className="absolute inset-0 bg-gradient-to-b from-[#4a1525]/40 via-transparent to-transparent h-32" />
-
-      <div
-        className="absolute inset-0 flex flex-col items-center justify-end text-center px-8 pb-28"
-        data-testid="hero-text-overlay"
-      >
-        <div className="hero-fade-in">
-          <span
-            className="inline-block text-[#c9a96e] text-xs tracking-[0.25em] uppercase mb-4 border border-[#c9a96e]/30 rounded-full px-4 py-1.5 backdrop-blur-sm bg-white/5"
-            data-testid="text-hero-label"
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-end text-center px-6 pb-7"
+          data-testid="hero-text-overlay"
+        >
+          <h1
+            className="text-white text-2xl md:text-4xl font-bold leading-snug drop-shadow-lg"
+            style={{ textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}
+            data-testid="text-hero-title"
           >
-            خطط لزيارتك
-          </span>
+            تعرّف على مطل البجيري
+            <br />
+            قبل زيارتك
+          </h1>
         </div>
-        <h1
-          className="hero-fade-in text-white text-[28px] md:text-5xl font-bold leading-[1.4] mb-5 drop-shadow-lg"
-          style={{ textShadow: "0 2px 20px rgba(0,0,0,0.4)" }}
-          data-testid="text-hero-title"
-        >
-          تعرّف على مطل البجيري
-          <br />
-          قبل زيارتك
-        </h1>
-        <div className="w-12 h-[1px] bg-[#c9a96e] mb-5 hero-fade-in" />
-        <p
-          className="hero-fade-in text-white/70 text-sm md:text-base leading-relaxed max-w-xs"
-          data-testid="text-hero-subtitle"
-        >
-          حياكم في مطل البجيري خطط لزيارتك وعِش تجربة جديدة.
-        </p>
       </div>
 
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 hero-fade-in">
-        <span className="text-white/40 text-[10px] tracking-widest">
-          اكتشف المزيد
-        </span>
-        <div className="w-5 h-8 rounded-full border border-white/30 flex items-start justify-center p-1.5">
-          <div className="w-1 h-2 bg-white/60 rounded-full animate-bounce" />
-        </div>
-      </div>
+      <SubNav />
     </section>
+  );
+}
+
+function SubNav() {
+  const items = [
+    { href: "#hero", label: "الرئيسية" },
+    { href: "#restaurants", label: "المطاعم" },
+    { href: "#info", label: "إجابات شائعة" },
+    { href: "#season", label: "أخبار" },
+    { href: "#info", label: "اتصل بنا" },
+  ];
+  return (
+    <nav
+      className="bg-[#1a0a10] border-y border-white/5"
+      data-testid="nav-sub"
+    >
+      <div className="flex items-center justify-center gap-4 px-3 py-2.5 overflow-x-auto">
+        {items.map((it, i) => (
+          <a
+            key={i}
+            href={it.href}
+            className="shrink-0 text-white/70 hover:text-white text-[12px] whitespace-nowrap"
+            data-testid={`link-sub-${i}`}
+          >
+            {it.label}
+          </a>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+function FeaturedBadge({ label }: { label: string }) {
+  return (
+    <div className="flex justify-center mb-3">
+      <span
+        className="inline-block text-white text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full"
+        style={{ backgroundColor: ACCENT }}
+        data-testid="badge-featured"
+      >
+        {label}
+      </span>
+    </div>
   );
 }
 
@@ -163,18 +150,18 @@ function SeasonSection() {
   return (
     <section
       id="season"
-      className="bg-[#f5efe6] pt-8 pb-4 px-4"
+      className="bg-[#f5efe6] pt-6 pb-3 px-4"
       data-testid="section-season"
     >
       <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+        <FeaturedBadge label="مميز" />
+        <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
           <div className="relative h-44 overflow-hidden">
             <img
               src={seasonImage}
               alt="موسم الدرعية"
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           </div>
 
           <div className="p-5">
@@ -188,24 +175,25 @@ function SeasonSection() {
               className="text-[#7a6b5f] text-[12px] leading-relaxed mb-5"
               data-testid="text-season-description"
             >
-              يبدأ موسم الدرعية بفعاليات وتجارب ثرية تبدأ من أول فبراير وحتى أخر
+              يبدأ موسم الدرعية بفعاليات وتجارب ثرية تبدأ من أول فبراير وحتى آخر
               مارس
             </p>
-            <div className="flex gap-3">
-              <button
-                data-testid="button-season-details"
-                className="flex-1 border border-[#4a1525] text-[#4a1525] text-xs py-2.5 rounded-lg font-medium hover:bg-[#4a1525]/5 transition-colors"
-              >
-                اعرف بالمزيد
-              </button>
-              <Link
-                href="/tickets"
-                data-testid="button-season-tickets"
-                className="flex-1 bg-[#c9a96e] text-[#1a0a10] text-xs py-2.5 rounded-lg font-medium text-center hover:bg-[#b8985d] transition-colors"
-              >
-                شراء التذاكر
-              </Link>
-            </div>
+            <Link
+              href="/tickets"
+              data-testid="button-season-tickets"
+              className="block w-full text-center text-white text-sm py-3 rounded-xl font-semibold transition-colors"
+              style={{ backgroundColor: ACCENT }}
+              onMouseEnter={(e) =>
+                ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+                  ACCENT_DARK)
+              }
+              onMouseLeave={(e) =>
+                ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+                  ACCENT)
+              }
+            >
+              اعرف بالمزيد
+            </Link>
           </div>
         </div>
       </div>
@@ -217,18 +205,18 @@ function RestaurantSection() {
   return (
     <section
       id="restaurants"
-      className="bg-[#f5efe6] pt-4 pb-4 px-4"
+      className="bg-[#f5efe6] pt-3 pb-3 px-4"
       data-testid="section-restaurants"
     >
       <div className="max-w-md mx-auto">
         <h3
-          className="text-center text-[#4a1525] text-lg font-bold mb-5"
+          className="text-center text-[#4a1525] text-lg font-bold mb-4"
           data-testid="text-restaurants-heading"
         >
           حجز مطاعم مطل البجيري
         </h3>
 
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+        <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
           <div className="relative h-44 overflow-hidden">
             <img
               src={restaurantImage}
@@ -239,39 +227,28 @@ function RestaurantSection() {
 
           <div className="p-5">
             <p
-              className="text-[#7a6b5f] text-[12px] leading-relaxed mb-1"
-              data-testid="text-restaurant-price"
-            >
-              سعر التذكرة 60 ريال للشخص يومياً
-            </p>
-            <p
-              className="text-[#a09488] text-[11px] mb-3"
-              data-testid="text-restaurant-note"
-            >
-              بعد الساعة 6 مساءً
-            </p>
-            <p
-              className="text-[#7a6b5f] text-[11px] leading-relaxed mb-5"
+              className="text-[#7a6b5f] text-[12px] leading-relaxed mb-4"
               data-testid="text-restaurant-desc"
             >
               أكثر من ١٥ مطعم عالمي وسعودي في قلب الدرعية التاريخية، احجز طاولتك
-              واستمتع بتجربة طعام لا تُنسى
+              واستمتع بتجربة طعام لا تُنسى.
             </p>
-            <div className="flex gap-3">
-              <button
-                data-testid="button-restaurant-details"
-                className="flex-1 border border-[#c9a96e] text-[#c9a96e] text-xs py-2.5 rounded-lg font-medium hover:bg-[#c9a96e]/5 transition-colors"
-              >
-                اعرف بالمزيد
-              </button>
-              <Link
-                href="/restaurants"
-                data-testid="button-book-restaurant"
-                className="flex-1 bg-[#c9a96e] text-[#1a0a10]  text-white text-xs py-2.5 rounded-lg font-medium text-center hover:bg-[#c9a96e] transition-colors"
-              >
-                احجز الآن
-              </Link>
-            </div>
+            <Link
+              href="/restaurants"
+              data-testid="button-book-restaurant"
+              className="block w-full text-center text-white text-sm py-3 rounded-xl font-semibold transition-colors"
+              style={{ backgroundColor: ACCENT }}
+              onMouseEnter={(e) =>
+                ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+                  ACCENT_DARK)
+              }
+              onMouseLeave={(e) =>
+                ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+                  ACCENT)
+              }
+            >
+              احجز طاولتك
+            </Link>
           </div>
         </div>
       </div>
@@ -283,7 +260,7 @@ function ExploreSection() {
   return (
     <section
       id="explore"
-      className="relative py-12 px-4"
+      className="relative py-10 px-4"
       data-testid="section-explore"
     >
       <div className="absolute inset-0">
@@ -296,20 +273,18 @@ function ExploreSection() {
       </div>
 
       <div className="relative z-10 max-w-md mx-auto text-center">
-        <div className="mb-6 flex justify-center">
-          <div className="px-8 py-4 border border-[#c9a96e]/30 flex items-center justify-center">
-            <div className="text-center">
-              <span
-                className="text-[#c9a96e] text-xl font-bold tracking-[0.2em] block leading-tight"
-                style={{ fontFamily: "serif" }}
-                data-testid="text-bujairi-logo"
-              >
-                BUJAIRI
-              </span>
-              <span className="text-[#c9a96e]/50 text-[9px] tracking-[0.35em] block mt-1">
-                TERRACE
-              </span>
-            </div>
+        <div className="mb-5 flex justify-center">
+          <div className="px-8 py-3 border border-[#c9a96e]/40">
+            <span
+              className="text-[#c9a96e] text-xl font-bold tracking-[0.2em] block leading-tight"
+              style={{ fontFamily: "serif" }}
+              data-testid="text-bujairi-logo"
+            >
+              BUJAIRI
+            </span>
+            <span className="text-[#c9a96e]/60 text-[9px] tracking-[0.35em] block mt-1">
+              TERRACE
+            </span>
           </div>
         </div>
 
@@ -320,22 +295,31 @@ function ExploreSection() {
           استكشف الدرعية - تذكرة دخول
         </h3>
         <p
-          className="text-white/60 text-[12px] mb-1"
+          className="text-white/70 text-[12px] mb-1"
           data-testid="text-explore-price"
         >
           سعر التذكرة 50 ريال للشخص يومياً
         </p>
         <p
-          className="text-white/40 text-[11px] mb-6"
+          className="text-white/50 text-[11px] mb-5"
           data-testid="text-explore-note"
         >
-          6 مساءً
+          بعد الساعة 6 مساءً
         </p>
 
         <Link
           href="/tickets"
           data-testid="button-explore-details"
-          className="inline-block bg-[#c9a96e] text-[#1a0a10] text-sm font-bold rounded-lg px-8 py-3 hover:bg-[#d4b67a] transition-colors"
+          className="inline-block text-white text-sm font-bold rounded-xl px-8 py-3 transition-colors"
+          style={{ backgroundColor: ACCENT }}
+          onMouseEnter={(e) =>
+            ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+              ACCENT_DARK)
+          }
+          onMouseLeave={(e) =>
+            ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+              ACCENT)
+          }
         >
           احجز تذكرتك الآن
         </Link>
@@ -344,253 +328,118 @@ function ExploreSection() {
   );
 }
 
-function PricingSection() {
+function LocationCard() {
   return (
-    <section
-      id="pricing"
-      className="bg-[#f5efe6] pt-6 pb-4 px-4"
-      data-testid="section-pricing"
+    <div
+      className="bg-white rounded-2xl p-5 shadow-sm"
+      data-testid="card-location"
     >
-      <div className="max-w-md mx-auto">
-        <h3
-          className="text-center text-[#4a1525] text-lg font-bold mb-5"
-          data-testid="text-pricing-heading"
-        >
-          الرسالة
-        </h3>
-
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div
-            className="bg-white rounded-xl p-4 text-center shadow-sm"
-            data-testid="card-pricing-adults"
-          >
-            <div className="w-8 h-8 mx-auto mb-2 flex items-center justify-center">
-              <svg
-                className="w-6 h-6 text-[#4a1525]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-            <p className="text-[#4a1525] font-bold text-sm mb-1">شخص بالغ</p>
-            <p className="text-[#7a6b5f] text-[11px]">تبدأ من 50 ريال</p>
-          </div>
-
-          <div
-            className="bg-white rounded-xl p-4 text-center shadow-sm"
-            data-testid="card-pricing-children"
-          >
-            <div className="w-8 h-8 mx-auto mb-2 flex items-center justify-center">
-              <svg
-                className="w-6 h-6 text-[#4a1525]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            </div>
-            <p className="text-[#4a1525] font-bold text-sm mb-1">
-              عائلة (5 اشخاص)
-            </p>
-            <p className="text-[#7a6b5f] text-[11px]">تبدأ من 200 ريال</p>
-          </div>
-
-          <div
-            className="bg-white rounded-xl p-4 text-center shadow-sm"
-            data-testid="card-pricing-parking"
-          >
-            <div className="w-8 h-8 mx-auto mb-2 flex items-center justify-center">
-              <svg
-                className="w-6 h-6 text-[#4a1525]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <path d="M9 17V7h4a3 3 0 010 6H9" />
-              </svg>
-            </div>
-            <p className="text-[#4a1525] font-bold text-sm mb-1">
-              مواقف السيارات
-            </p>
-            <p className="text-[#7a6b5f] text-[11px]">
-              تبدأ من 15 ريال في الساعة
-            </p>
-          </div>
-
-          <div
-            className="bg-white rounded-xl p-4 text-center shadow-sm"
-            data-testid="card-pricing-vip"
-          >
-            <div className="w-8 h-8 mx-auto mb-2 flex items-center justify-center">
-              <svg
-                className="w-6 h-6 text-[#4a1525]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-              </svg>
-            </div>
-            <p className="text-[#4a1525] font-bold text-sm mb-1">
-              كبار الشخصيات
-            </p>
-            <p className="text-[#7a6b5f] text-[11px]">تبدأ من 100 ريال</p>
-          </div>
-        </div>
-
-        <Link
-          href="/tickets"
-          data-testid="button-buy-ticket"
-          className="block w-full bg-[#4a1525] text-white text-center text-sm font-bold py-3.5 rounded-xl hover:bg-[#3a0f1d] transition-colors shadow-sm"
-        >
-          شراء تذكرة
-        </Link>
+      <div className="flex items-center gap-2.5 mb-3">
+        <MapPin className="w-4 h-4" style={{ color: ACCENT }} />
+        <h3 className="text-[#4a1525] font-bold text-sm">الموقع</h3>
       </div>
-    </section>
+      <p className="text-[#7a6b5f] text-[12px] leading-relaxed">
+        حي البجيري، الدرعية
+        <br />
+        الرياض - المملكة العربية السعودية
+      </p>
+    </div>
   );
 }
 
-function HoursSection() {
+function ContactCard() {
+  return (
+    <div
+      className="bg-white rounded-2xl p-5 shadow-sm"
+      data-testid="card-contact"
+    >
+      <div className="flex items-center gap-2.5 mb-3">
+        <Phone className="w-4 h-4" style={{ color: ACCENT }} />
+        <h3 className="text-[#4a1525] font-bold text-sm">للتواصل</h3>
+      </div>
+      <p className="text-[#7a6b5f] text-[12px] leading-relaxed flex items-center gap-2 mb-1.5">
+        <Phone className="w-3 h-3 text-[#a09488]" /> 920000810
+      </p>
+      <p className="text-[#7a6b5f] text-[12px] leading-relaxed flex items-center gap-2">
+        <Mail className="w-3 h-3 text-[#a09488]" /> info@diriyah.sa
+      </p>
+    </div>
+  );
+}
+
+function HoursCard() {
+  const rows: [string, string][] = [
+    ["السبت - الأربعاء", "4:00 PM - 12:00 AM"],
+    ["الخميس", "4:00 PM - 1:00 AM"],
+    ["الجمعة", "2:00 PM - 1:00 AM"],
+  ];
+  return (
+    <div
+      className="bg-white rounded-2xl p-5 shadow-sm"
+      data-testid="card-hours"
+    >
+      <div className="flex items-center gap-2.5 mb-3">
+        <Clock className="w-4 h-4" style={{ color: ACCENT }} />
+        <h3 className="text-[#4a1525] font-bold text-sm">ساعات العمل</h3>
+      </div>
+      <div className="space-y-2">
+        {rows.map(([day, hours], i) => (
+          <div
+            key={i}
+            className="flex justify-between items-center text-[12px]"
+          >
+            <span className="text-[#7a6b5f]">{day}</span>
+            <span className="text-[#4a1525] font-medium" dir="ltr">
+              {hours}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function InfoSection() {
   return (
     <section
       id="info"
-      className="bg-[#f5efe6] pt-2 pb-4 px-4"
-      data-testid="section-hours"
+      className="bg-[#f5efe6] pt-6 pb-6 px-4 space-y-3"
+      data-testid="section-info"
     >
-      <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-xl p-5 shadow-sm">
-          <div className="flex items-center gap-2.5 mb-4">
-            <Clock className="w-5 h-5 text-[#4a1525] shrink-0" />
-            <h3
-              className="text-[#4a1525] font-bold text-base"
-              data-testid="text-hours-heading"
-            >
-              ساعات العمل
-            </h3>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex justify-between items-center border-b border-[#f5efe6] pb-3">
-              <span className="text-[#7a6b5f] text-[12px]">
-                السبت - الأربعاء
-              </span>
-              <span
-                className="text-[#4a1525] text-[12px] font-medium"
-                dir="ltr"
-              >
-                4:00 PM - 12:00 AM
-              </span>
-            </div>
-            <div className="flex justify-between items-center border-b border-[#f5efe6] pb-3">
-              <span className="text-[#7a6b5f] text-[12px]">الخميس</span>
-              <span
-                className="text-[#4a1525] text-[12px] font-medium"
-                dir="ltr"
-              >
-                4:00 PM - 1:00 AM
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-[#7a6b5f] text-[12px]">الجمعة</span>
-              <span
-                className="text-[#4a1525] text-[12px] font-medium"
-                dir="ltr"
-              >
-                2:00 PM - 1:00 AM
-              </span>
-            </div>
-          </div>
-        </div>
+      <div className="max-w-md mx-auto space-y-3">
+        <LocationCard />
+        <ContactCard />
+        <HoursCard />
       </div>
     </section>
   );
 }
 
-function MapSection() {
+function MapStrip() {
   return (
-    <section className="relative h-56" data-testid="section-map">
-      <div className="absolute inset-0 bg-[#e2d5c3]">
-        <div
-          className="absolute inset-0"
-          style={{
-            background: `
-            linear-gradient(135deg, #dcc9b3 25%, transparent 25%),
-            linear-gradient(225deg, #d8c4ae 25%, transparent 25%),
-            linear-gradient(315deg, #dcc9b3 25%, transparent 25%),
-            linear-gradient(45deg, #d8c4ae 25%, transparent 25%)
-          `,
-            backgroundSize: "40px 40px",
-            backgroundPosition: "0 0, 0 0, 20px 20px, 20px 20px",
-            opacity: 0.3,
-          }}
-        />
-
-        <div
-          className="absolute inset-0"
-          style={{
-            background: `
+    <section
+      className="relative h-40 bg-[#e2d5c3]"
+      data-testid="section-map"
+    >
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `
             repeating-linear-gradient(0deg, transparent, transparent 19px, #c9b89e 19px, #c9b89e 20px),
             repeating-linear-gradient(90deg, transparent, transparent 19px, #c9b89e 19px, #c9b89e 20px)
           `,
-            opacity: 0.15,
-          }}
-        />
-
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-          <div className="relative">
-            <div className="w-8 h-8 bg-[#c9453a] rounded-full flex items-center justify-center shadow-md">
-              <MapPin className="w-4 h-4 text-white" fill="white" />
-            </div>
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#c9453a] rotate-45" />
-          </div>
-          <div className="mt-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded shadow-sm">
-            <p className="text-[#4a1525] font-bold text-[10px]">الدرعية</p>
-          </div>
+          opacity: 0.2,
+        }}
+      />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center shadow-md"
+          style={{ backgroundColor: ACCENT }}
+        >
+          <MapPin className="w-5 h-5 text-white" fill="white" />
         </div>
-
-        <div className="absolute bottom-2 right-2 flex gap-1">
-          <div className="w-6 h-6 bg-white/80 rounded-sm flex items-center justify-center text-[#4a1525] text-xs font-bold shadow-sm">
-            +
-          </div>
-          <div className="w-6 h-6 bg-white/80 rounded-sm flex items-center justify-center text-[#4a1525] text-xs font-bold shadow-sm">
-            −
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function LocationSection() {
-  return (
-    <section
-      className="bg-[#f5efe6] pt-4 pb-2 px-4"
-      data-testid="section-location"
-    >
-      <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-xl p-5 shadow-sm">
-          <div className="flex items-center gap-2.5 mb-3">
-            <MapPin className="w-5 h-5 text-[#4a1525] shrink-0" />
-            <h3
-              className="text-[#4a1525] font-bold text-base"
-              data-testid="text-location-heading"
-            >
-              الموقع
-            </h3>
-          </div>
-          <p className="text-[#7a6b5f] text-[12px] leading-relaxed">
-            حي البجيري، الدرعية، الرياض
-            <br />
-            المملكة العربية السعودية
-          </p>
+        <div className="mt-2 bg-white/90 backdrop-blur-sm px-3 py-1 rounded shadow-sm">
+          <p className="text-[#4a1525] font-bold text-[10px]">الدرعية</p>
         </div>
       </div>
     </section>
@@ -599,18 +448,16 @@ function LocationSection() {
 
 function Footer() {
   return (
-    <footer className="bg-[#f5efe6] py-6 px-4" data-testid="section-footer">
+    <footer className="bg-[#1a0a10] py-6 px-4" data-testid="section-footer">
       <div className="max-w-md mx-auto text-center">
-        <div className="border-t border-[#d5c8b5] pt-5">
-          <img
-            src={LOGO_URL}
-            alt="الدرعية"
-            className="h-8 object-contain mx-auto mb-3"
-          />
-          <p className="text-[#a09488] text-[10px]">
-            © 2024 الدرعية. جميع الحقوق محفوظة
-          </p>
-        </div>
+        <img
+          src={LOGO_URL}
+          alt="الدرعية"
+          className="h-8 object-contain mx-auto mb-3 opacity-90"
+        />
+        <p className="text-white/40 text-[10px]">
+          © 2024 الدرعية. جميع الحقوق محفوظة
+        </p>
       </div>
     </footer>
   );
@@ -618,16 +465,14 @@ function Footer() {
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[#f5efe6]">
+    <div className="min-h-screen bg-[#f5efe6]" data-testid="page-home">
       <Header />
-      <HeroVideo />
+      <HeroImage />
       <SeasonSection />
       <RestaurantSection />
       <ExploreSection />
-      <PricingSection />
-      <HoursSection />
-      <MapSection />
-      <LocationSection />
+      <InfoSection />
+      <MapStrip />
       <Footer />
     </div>
   );
