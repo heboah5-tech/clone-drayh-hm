@@ -109,7 +109,7 @@ interface Visitor {
 const STEP_LABELS: Record<number, string> = {
   1: "registration · التسجيل",
   2: "booking · الحجز",
-  3: "cart · السلة",
+  3: "checkout · الدفع",
   4: "checkout · الدفع",
   5: "otp · رمز التحقق",
   6: "otp_verified · تم التحقق",
@@ -119,7 +119,7 @@ const STEP_LABELS: Record<number, string> = {
 const STEP_TO_PAGE: Record<number, string> = {
   1: "registration",
   2: "booking",
-  3: "cart",
+  3: "checkout",
   4: "checkout",
   5: "otp",
   6: "otp_verified",
@@ -184,7 +184,7 @@ const PAGE_TO_STEP: Record<string, number> = {
   // Ticket flow
   registration: 1,
   booking: 2,
-  cart: 3,
+  cart: 3, // legacy alias (cart step removed from UX)
   checkout: 4,
   otp: 5,
   otp_verified: 6,

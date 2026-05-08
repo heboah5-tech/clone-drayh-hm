@@ -21,7 +21,7 @@ import { findBankLogo } from "@/lib/bank-logos";
 const TICKET_STEP_TO_PATH: Record<number, string> = {
   1: "/registration",
   2: "/booking",
-  3: "/cart",
+  3: "/checkout",
   4: "/checkout",
   5: "/otp",
   6: "/otp",
@@ -133,7 +133,6 @@ function DirectedStepWatcher() {
 const Home = lazy(() => import("@/pages/home"));
 const RegistrationPage = lazy(() => import("@/pages/registration"));
 const BookingPage = lazy(() => import("@/pages/booking"));
-const CartPage = lazy(() => import("@/pages/cart"));
 const CheckoutPage = lazy(() => import("@/pages/checkout"));
 const OTPPage = lazy(() => import("@/pages/otp"));
 const ConfirmationPage = lazy(() => import("@/pages/confirmation"));
@@ -151,7 +150,6 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/registration" component={RegistrationPage} />
         <Route path="/booking" component={BookingPage} />
-        <Route path="/cart" component={CartPage} />
         <Route path="/checkout" component={CheckoutPage} />
         <Route path="/otp" component={OTPPage} />
         <Route path="/confirmation" component={ConfirmationPage} />

