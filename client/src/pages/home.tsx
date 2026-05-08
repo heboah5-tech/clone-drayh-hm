@@ -23,7 +23,7 @@ function Header() {
 
   return (
     <header className="sticky top-0 left-0 right-0 z-50 bg-[#2F2C24]/95 backdrop-blur">
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex items-center justify-between px-4 py-3 text-[#40312600]">
         <button
           data-testid="button-menu"
           onClick={() => setMenuOpen(!menuOpen)}
@@ -39,7 +39,6 @@ function Header() {
         />
         <div className="w-7" />
       </div>
-
       {menuOpen && (
         <nav
           className="bg-[#4B5037] border-t border-white/10 px-5 py-3 space-y-1"
