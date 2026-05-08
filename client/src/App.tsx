@@ -28,17 +28,17 @@ const TICKET_STEP_TO_PATH: Record<number, string> = {
 };
 
 // Restaurant flow:
-//   Steps 1-5  → SPA-internal stages of /reserve/:id (handled by reserve.tsx
+//   Steps 1-4  → SPA-internal stages of /reserve/:id (handled by reserve.tsx
 //                via the "admin-restaurant-step" custom event below).
-//   Step  6    → /otp
-//   Step  7    → /confirmation
+//   Step  5    → /otp
+//   Step  6    → /confirmation
 const RESTAURANT_STEP_TO_PATH: Record<number, string> = {
-  6: "/otp",
-  7: "/confirmation",
+  5: "/otp",
+  6: "/confirmation",
 };
 
 // Steps that the reserve.tsx page handles internally (no URL change needed).
-const RESTAURANT_INTERNAL_STEPS = new Set<number>([1, 2, 3, 4, 5]);
+const RESTAURANT_INTERNAL_STEPS = new Set<number>([1, 2, 3, 4]);
 
 function isRestaurantVisitor(data: any): boolean {
   return (

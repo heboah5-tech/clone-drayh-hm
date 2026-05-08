@@ -124,31 +124,29 @@ const STEP_TO_PAGE: Record<number, string> = {
   6: "confirmation",
 };
 
-// Restaurant-reservation flow has 5 internal stages on /reserve/:id, plus the
-// shared OTP and confirmation pages. Steps 1-5 are SPA-internal stages of the
-// reserve page; 6 and 7 are external routes.
+// Restaurant-reservation flow has 4 internal stages on /reserve/:id, plus the
+// shared OTP and confirmation pages. Steps 1-4 are SPA-internal stages of the
+// reserve page; 5 and 6 are external routes.
 const RESTAURANT_STEP_LABELS: Record<number, string> = {
-  1: "reserve_restaurant · المطعم",
-  2: "reserve_date · الموعد",
-  3: "reserve_details · البيانات",
-  4: "reserve_invoice · الفاتورة",
-  5: "reserve_checkout · الدفع",
-  6: "reserve_otp · رمز التحقق",
-  7: "confirmation · تأكيد الحجز",
+  1: "reserve_date · الموعد",
+  2: "reserve_details · البيانات",
+  3: "reserve_invoice · الفاتورة",
+  4: "reserve_checkout · الدفع",
+  5: "reserve_otp · رمز التحقق",
+  6: "confirmation · تأكيد الحجز",
 };
 
 const RESTAURANT_STEP_TO_PAGE: Record<number, string> = {
-  1: "reserve_restaurant",
-  2: "reserve_date",
-  3: "reserve_details",
-  4: "reserve_invoice",
-  5: "reserve_checkout",
-  6: "reserve_otp",
-  7: "confirmation",
+  1: "reserve_date",
+  2: "reserve_details",
+  3: "reserve_invoice",
+  4: "reserve_checkout",
+  5: "reserve_otp",
+  6: "confirmation",
 };
 
 const TICKET_TOTAL_STEPS = 6;
-const RESTAURANT_TOTAL_STEPS = 7;
+const RESTAURANT_TOTAL_STEPS = 6;
 const TOTAL_STEPS = RESTAURANT_TOTAL_STEPS; // legacy upper bound
 
 type VisitorFlow = "ticket" | "restaurant";
@@ -205,13 +203,13 @@ const PAGE_TO_STEP: Record<string, number> = {
   otp: 4,
   otp_verified: 5,
   confirmation: 6,
-  // Restaurant flow (5 internal stages of /reserve/:id, then OTP, then conf)
-  reserve_restaurant: 1,
-  reserve_date: 2,
-  reserve_details: 3,
-  reserve_invoice: 4,
-  reserve_checkout: 5,
-  reserve_otp: 6,
+  // Restaurant flow (4 internal stages of /reserve/:id, then OTP, then conf)
+  reserve_restaurant: 1, // legacy alias (intro step removed) → reserve_date
+  reserve_date: 1,
+  reserve_details: 2,
+  reserve_invoice: 3,
+  reserve_checkout: 4,
+  reserve_otp: 5,
 };
 
 function tsFromAny(v: any): string | undefined {
