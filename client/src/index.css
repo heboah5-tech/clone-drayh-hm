@@ -66,7 +66,7 @@
   --chart-4: 20 50% 45%;
   --chart-5: 30 60% 50%;
 
-  --font-sans: 'Roboto', 'Tajawal', 'Cairo', 'Noto Sans Arabic', sans-serif;
+  --font-sans: 'Roboto', 'Noto Sans Arabic', sans-serif;
   --font-serif: 'Roboto', 'Noto Sans Arabic', Georgia, serif;
   --font-mono: Menlo, monospace;
   --radius: .5rem;
@@ -173,7 +173,7 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply antialiased bg-background text-foreground;
   }
 }
 

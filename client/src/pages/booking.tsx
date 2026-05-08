@@ -1,10 +1,16 @@
-import { ArrowRight, ChevronDown, Calendar, Clock, Ticket, Info } from "lucide-react";
+import { ChevronDown, Calendar, Clock, Ticket, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { handleCurrentPage } from "@/lib/firebase";
+import {
+  RestaurantNav,
+  ProgressBar,
+  PageBanner,
+  BujairiFooter,
+} from "@/components/bujairi-header";
 
 export default function BookingPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -15,81 +21,15 @@ export default function BookingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f5efe6] to-[#ebddd0] flex flex-col" dir="rtl">
-      <Header />
+    <div className="min-h-screen bg-[#ebddd0] flex flex-col" dir="rtl">
+      <RestaurantNav active="booking-options" />
+      <ProgressBar current={2} />
+      <PageBanner title="الحجز" />
       <main className="flex-1 pb-8">
-        <TitleSection />
         <BookingForm date={date} setDate={setDate} time={time} setTime={setTime} />
         <TermsSection />
-        <FooterSection />
       </main>
-    </div>
-  );
-}
-
-function Header() {
-  return (
-    <header className="bg-[#4a1525] text-white">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <Link href="/registration">
-            <Button size="icon" variant="ghost" className="text-white hover:bg-white/10" data-testid="button-back-booking">
-              <ArrowRight className="w-5 h-5" />
-            </Button>
-          </Link>
-          
-          <div className="flex-1 flex justify-center">
-            <img src="/logo-white.svg" alt="الدرعية" className="h-12" data-testid="img-booking-logo" />
-          </div>
-          
-          <div className="w-10" />
-        </div>
-        
-        <div className="flex items-center justify-center gap-1 mt-6 pb-2">
-          {[
-            { number: 1, label: "تسجيل" },
-            { number: 2, label: "الحجز" },
-            { number: 3, label: "السلة" },
-            { number: 4, label: "الدفع" },
-          ].map((step, index, arr) => (
-            <div key={step.number} className="flex items-center">
-              <div className="flex flex-col items-center">
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                    step.number <= 2
-                      ? "bg-gradient-to-br from-[#c9a96e] to-[#b8935a] text-white shadow-lg"
-                      : "bg-white/20 text-white/60"
-                  }`}
-                >
-                  {step.number}
-                </div>
-                <span className="text-xs mt-2 text-white/80">{step.label}</span>
-              </div>
-              {index < arr.length - 1 && (
-                <div
-                  className={`w-10 h-1 mx-1 rounded-full ${
-                    step.number < 2 ? "bg-gradient-to-r from-[#c9a96e] to-[#b8935a]" : "bg-white/20"
-                  }`}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function TitleSection() {
-  return (
-    <div className="bg-gradient-to-r from-[#4a1525] to-[#3a0f1d] py-8 px-4 text-center">
-      <div className="flex items-center justify-center gap-3 mb-2">
-        <Ticket className="w-7 h-7 text-[#c9a96e]" />
-        <h1 className="text-2xl font-bold text-white" data-testid="text-booking-title">
-          تصريح دخول الدرعية
-        </h1>
-      </div>
-      <p className="text-white/70 text-sm">اختر التاريخ والوقت المناسب لزيارتك</p>
+      <BujairiFooter />
     </div>
   );
 }
@@ -213,7 +153,7 @@ function BookingForm({
             </p>
           )}
           
-          <Link href="/tickets">
+          <Link href="/">
             <Button 
               variant="outline"
               size="lg"
@@ -259,12 +199,3 @@ function TermsSection() {
   );
 }
 
-function FooterSection() {
-  return (
-    <footer className="px-4 py-6 text-center" data-testid="section-booking-footer">
-      <p className="text-xs text-muted-foreground">
-        حقوق النشر 2024. جميع الحقوق محفوظة
-      </p>
-    </footer>
-  );
-}
