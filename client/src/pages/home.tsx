@@ -117,7 +117,7 @@ function SubNav() {
       className="bg-[#2F2C24] border-y border-white/5"
       data-testid="nav-sub"
     >
-      <div className="flex items-center justify-center gap-4 px-3 py-2.5 overflow-x-auto">
+      <div className="flex items-center justify-center gap-4 px-3 py-2.5 overflow-x-auto text-[#40312600]">
         {items.map((it, i) => (
           <a
             key={i}
