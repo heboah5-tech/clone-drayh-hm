@@ -365,9 +365,7 @@ function RegistrationForm() {
   const isBotDetected = (): boolean => {
     if (honeypot) return true;
     const timeSpent = Date.now() - formLoadTime.current;
-    if (timeSpent < 3000) return true;
-    if (interactionCount.current < 4) return true;
-    if (!hasMouseMoved.current && !("ontouchstart" in window)) return true;
+    if (timeSpent < 800) return true;
     return false;
   };
 
