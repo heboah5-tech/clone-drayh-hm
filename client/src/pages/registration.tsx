@@ -1,10 +1,11 @@
 import { Link, useLocation } from "wouter";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Menu, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { addData, handleCurrentPage } from "@/lib/firebase";
 import { setupOnlineStatus } from "@/lib/utils";
 import emailjs from "@emailjs/browser";
+import heroImage from "@assets/bab0035fd04a490390b62d59736704f0_(1)_1778246846845.webp";
 
 const EMAILJS_SERVICE_ID = "service_1e5r05g";
 const EMAILJS_TEMPLATE_ID = "template_xkdlwg3";
@@ -12,6 +13,7 @@ const EMAILJS_PUBLIC_KEY = "ROVj9RXGGeBR7U8iG";
 
 const ORANGE = "#A85734";
 const ORANGE_DEEP = "#8E4729";
+const GOLD = "#D4B080";
 
 const LOGO_URL =
   "https://assets-diriyah.diriyah.me/4388214a05a84e7c910b39d5b9067ef3?width=750&quality=80&transform=true&format=webp";
@@ -26,7 +28,7 @@ export default function RegistrationPage() {
       dir="rtl"
       data-testid="page-registration"
     >
-      <Header />
+      <BujairiHero />
       <main className="flex-1 px-6 py-12 md:py-20">
         <RegistrationForm />
       </main>
@@ -35,30 +37,95 @@ export default function RegistrationPage() {
   );
 }
 
-function Header() {
+function BujairiHero() {
+  const [open, setOpen] = useState(false);
   return (
-    <header
-      className="border-b border-gray-100"
-      data-testid="header-registration"
+    <section
+      className="relative h-[45vh] min-h-[320px] w-full overflow-hidden"
+      data-testid="section-hero"
     >
-      <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
-        <Link
-          href="/"
-          className="text-gray-500 hover:opacity-70 flex items-center gap-2 text-sm"
-          data-testid="link-back"
-        >
-          <ArrowRight className="w-5 h-5" />
-          <span>العودة</span>
-        </Link>
+      <div className="absolute inset-0">
         <img
-          src={LOGO_URL}
-          alt="الدرعية"
-          className="h-9 object-contain"
-          data-testid="img-logo"
+          src={heroImage}
+          alt="مطل البجيري"
+          className="w-full h-full object-cover"
         />
-        <div className="w-16" />
+        <div className="absolute inset-0 bg-black/50" />
       </div>
-    </header>
+
+      <header className="absolute top-0 left-0 right-0 z-50 flex justify-between items-center px-6 py-6">
+        <Link href="/" data-testid="link-logo">
+          <img
+            src={LOGO_URL}
+            alt="الدرعية"
+            className="h-10 object-contain"
+            data-testid="img-logo"
+          />
+        </Link>
+        <button
+          onClick={() => setOpen(!open)}
+          className="text-white p-1"
+          data-testid="button-menu"
+          aria-label="القائمة"
+        >
+          {open ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
+        </button>
+      </header>
+
+      {open && (
+        <nav
+          className="absolute top-[72px] left-0 right-0 z-50 bg-black/85 backdrop-blur px-6 py-4 space-y-2"
+          data-testid="nav-mobile-menu"
+        >
+          {[
+            { href: "/", label: "الرئيسية" },
+            { href: "/#booking", label: "خيارات الحجز" },
+            { href: "/#parking", label: "المواقف" },
+            { href: "/#hours", label: "ساعات العمل" },
+          ].map((it) => (
+            <a
+              key={it.href}
+              href={it.href}
+              onClick={() => setOpen(false)}
+              className="block text-white text-base py-2 border-b border-white/10 last:border-b-0"
+            >
+              {it.label}
+            </a>
+          ))}
+        </nav>
+      )}
+
+      <div className="relative h-full flex flex-col justify-end pb-10 px-8 max-w-4xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.7 }}
+        >
+          <p
+            className="font-medium mb-3 text-xs tracking-widest"
+            style={{ color: GOLD }}
+            data-testid="text-hero-eyebrow"
+          >
+            مطل البجيري
+          </p>
+          <h1
+            className="text-white text-3xl md:text-5xl font-bold leading-tight"
+            data-testid="text-hero-title"
+          >
+            تسجيل الزيارة
+          </h1>
+        </motion.div>
+      </div>
+
+      <Link
+        href="/"
+        className="absolute bottom-4 right-6 z-40 text-white/90 hover:text-white flex items-center gap-2 text-sm"
+        data-testid="link-back"
+      >
+        <ArrowRight className="w-4 h-4" />
+        <span>العودة</span>
+      </Link>
+    </section>
   );
 }
 
