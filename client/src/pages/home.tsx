@@ -6,12 +6,12 @@ import { motion } from "framer-motion";
 import seasonImage from "@assets/8ae74984605c4076bfde52a6a35b8bca_1772291393428.webp";
 import restaurantImage from "@assets/50241d7ddb7a4537801bdee04bd13d27_1772291393426.webp";
 import exploreImage from "@assets/a49e06e53a5946eca35727c91bc458c8.webp";
+import heroImage from "@assets/bab0035fd04a490390b62d59736704f0_(1)_1778246846845.webp";
 
 const LOGO_URL =
   "https://assets-diriyah.diriyah.me/4388214a05a84e7c910b39d5b9067ef3?width=750&quality=80&transform=true&format=webp";
 
-const HERO_IMAGE_URL =
-  "https://assets-diriyah.diriyah.me/37694b856a414197ac77a4d1ea9ce588";
+const HERO_IMAGE_URL = heroImage;
 
 // Brand palette (Diriyah Wix reference)
 // ORANGE darkened from #C26C48 → #A85734 so white CTA text passes WCAG AA (≥ 4.5:1).
