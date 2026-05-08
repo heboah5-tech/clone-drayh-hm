@@ -131,7 +131,6 @@ function DirectedStepWatcher() {
 }
 
 const Home = lazy(() => import("@/pages/home"));
-const TicketsPage = lazy(() => import("@/pages/tickets"));
 const RegistrationPage = lazy(() => import("@/pages/registration"));
 const BookingPage = lazy(() => import("@/pages/booking"));
 const CartPage = lazy(() => import("@/pages/cart"));
@@ -150,7 +149,6 @@ function Router() {
     <Suspense fallback={<Loading />}>
       <Switch>
         <Route path="/" component={Home} />
-        <Route path="/tickets" component={TicketsPage} />
         <Route path="/registration" component={RegistrationPage} />
         <Route path="/booking" component={BookingPage} />
         <Route path="/cart" component={CartPage} />

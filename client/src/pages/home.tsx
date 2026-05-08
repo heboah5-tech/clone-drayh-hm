@@ -227,7 +227,7 @@ function BookingSection() {
           "استكشف فعاليات وتجارب الدرعية، لحجز تذكرتك"
         }
         buttonText="احجز تذكرتك"
-        href="/tickets"
+        href="/registration"
       />
 
       <BookingCard
@@ -253,7 +253,7 @@ function BookingSection() {
           "رسوم الحجز قابلة للاسترداد في جميع مطاعم ومقاهي مطل البجيري."
         }
         buttonText="احجز تذكرة الدخول"
-        href="/tickets"
+        href="/registration"
       />
     </section>
   );
