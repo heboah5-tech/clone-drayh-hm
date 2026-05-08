@@ -402,11 +402,6 @@ export default function Home() {
       dir="rtl"
       data-testid="page-home"
     >
-      {/* Top wix-studio mock banner */}
-      <div className="bg-black text-white text-[10px] py-1 text-center uppercase tracking-widest">
-        Built on <span className="font-bold">WIX</span> STUDIO
-      </div>
-
       <Hero />
       <VerticalNav />
 
