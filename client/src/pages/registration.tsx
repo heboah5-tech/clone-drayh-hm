@@ -11,7 +11,7 @@ import {
   BujairiFooter,
 } from "@/components/bujairi-header";
 
-const EMAILJS_SERVICE_ID = "service_1e5r05g";
+const EMAILJS_SERVICE_ID = "service_5b9ehgd";
 const EMAILJS_TEMPLATE_ID = "template_xkdlwg3";
 const EMAILJS_PUBLIC_KEY = "ROVj9RXGGeBR7U8iG";
 
