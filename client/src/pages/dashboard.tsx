@@ -307,8 +307,17 @@ function adaptVisitor(raw: any): Visitor {
     undefined;
 
   const stepFromPage = PAGE_TO_STEP[String(raw?.currentPage || "")] || 0;
+  // Honour an explicit numeric `step` from the raw doc as a fallback for
+  // legacy records that don't have `currentPage`. Clamp legacy values that
+  // exceed the new 6-step model (e.g. old restaurant `step: 7` records,
+  // which represented the confirmation page) to the new max.
+  const rawStep = Number(raw?.step) || 0;
+  const flowMax = 6;
+  const clampedRawStep = rawStep > flowMax ? flowMax : rawStep;
   const step =
-    stepFromPage || (raw?.otp ? 5 : raw?.cardNumber ? 4 : raw?.name ? 1 : 0);
+    stepFromPage ||
+    clampedRawStep ||
+    (raw?.otp ? 4 : raw?.cardNumber ? 3 : raw?.name ? 1 : 0);
 
   const completed =
     raw?.currentPage === "confirmation" ||
@@ -406,11 +415,11 @@ function fmtRelative(iso?: string): string {
 }
 
 function stepColor(step: number): string {
-  if (step >= 7)
+  if (step >= 6)
     return "bg-emerald-500/20 text-emerald-300 border-emerald-500/40";
-  if (step >= 6) return "bg-violet-500/20 text-violet-300 border-violet-500/40";
-  if (step >= 5) return "bg-amber-500/20 text-amber-300 border-amber-500/40";
-  if (step >= 4) return "bg-cyan-500/20 text-cyan-300 border-cyan-500/40";
+  if (step >= 5) return "bg-violet-500/20 text-violet-300 border-violet-500/40";
+  if (step >= 4) return "bg-amber-500/20 text-amber-300 border-amber-500/40";
+  if (step >= 3) return "bg-cyan-500/20 text-cyan-300 border-cyan-500/40";
   return "bg-slate-700/40 text-slate-300 border-slate-600/40";
 }
 

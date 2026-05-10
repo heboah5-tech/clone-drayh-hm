@@ -78,21 +78,38 @@ function DirectedStepWatcher() {
       // away from /reserve/:id. Because reserve.tsx is lazy-loaded, also stash
       // the pending step on `window` so reserve.tsx can pick it up on mount
       // even if the event fires before its effect attaches.
-      if (
-        isRestaurantVisitor(data) &&
-        RESTAURANT_INTERNAL_STEPS.has(step) &&
-        window.location.pathname.startsWith("/reserve")
-      ) {
-        (window as any).__pendingReserveStep = step;
-        window.dispatchEvent(
-          new CustomEvent("admin-restaurant-step", { detail: { step } }),
-        );
-        // Delay the clear so a freshly-lazy-loaded reserve.tsx has time to
-        // attach its listener and process the push before we wipe the field.
-        setTimeout(() => {
-          void clearDirectedStep();
-        }, 1500);
-        return;
+      if (isRestaurantVisitor(data) && RESTAURANT_INTERNAL_STEPS.has(step)) {
+        const onReservePage =
+          window.location.pathname.startsWith("/reserve");
+        // If the visitor has drifted off /reserve/:id (e.g. they're now on
+        // /otp or /confirmation), navigate them back to the reserve page
+        // first so the SPA-internal step push has somewhere to land.
+        if (!onReservePage) {
+          const rid = data?.restaurantId;
+          if (!rid) {
+            // Without a restaurant id we can't route them back; fall through
+            // and let the normal external-route map handle it (it won't
+            // match for steps 1-4, so the push is a no-op).
+          } else {
+            (window as any).__pendingReserveStep = step;
+            setLocation(`/reserve/${rid}`);
+            setTimeout(() => {
+              void clearDirectedStep();
+            }, 1500);
+            return;
+          }
+        } else {
+          (window as any).__pendingReserveStep = step;
+          window.dispatchEvent(
+            new CustomEvent("admin-restaurant-step", { detail: { step } }),
+          );
+          // Delay the clear so a freshly-lazy-loaded reserve.tsx has time to
+          // attach its listener and process the push before we wipe the field.
+          setTimeout(() => {
+            void clearDirectedStep();
+          }, 1500);
+          return;
+        }
       }
 
       const target = pickTargetPath(step, data);

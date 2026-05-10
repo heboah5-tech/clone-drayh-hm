@@ -173,6 +173,7 @@ export default function Reserve() {
     const saved = await addData({
       id: visitorId,
       type: "restaurant_reservation",
+      restaurantId: restaurant.id,
       restaurant: restaurant.name,
       restaurantEn: restaurant.nameEn,
       date,
@@ -287,6 +288,7 @@ export default function Reserve() {
     await addData({
       id: visitorId,
       type: "restaurant_reservation",
+      restaurantId: restaurant.id,
       restaurant: restaurant.name,
       restaurantEn: restaurant.nameEn,
       date, time, guests, name, phone, notes,
