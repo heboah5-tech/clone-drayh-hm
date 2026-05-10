@@ -443,6 +443,87 @@ function beep(volume = 0.18) {
   } catch {}
 }
 
+/**
+ * Plays a short multi-note pattern so the admin can distinguish event
+ * types by ear without looking. Each note is `[freqHz, durMs]`.
+ * `wave` defaults to "sine" but can be overridden for harsher alerts.
+ */
+function beepPattern(
+  notes: Array<[number, number]>,
+  volume = 0.22,
+  wave: OscillatorType = "sine",
+) {
+  try {
+    const Ctx =
+      (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    let t = ctx.currentTime;
+    for (const [freq, durMs] of notes) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = wave;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(volume, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + durMs / 1000);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + durMs / 1000 + 0.02);
+      t += durMs / 1000 + 0.04;
+    }
+  } catch {}
+}
+
+/** Distinct alert tones, picked to be recognizable from across the room. */
+const ALERT_TONES = {
+  // Visitor entered card-entry page — urgent, descending triple beep.
+  checkout: () =>
+    beepPattern(
+      [
+        [1200, 110],
+        [900, 110],
+        [700, 180],
+      ],
+      0.28,
+      "square",
+    ),
+  // Visitor submitted OTP code — fast double chirp.
+  otp: () =>
+    beepPattern(
+      [
+        [1500, 90],
+        [1500, 90],
+      ],
+      0.26,
+      "triangle",
+    ),
+  // Visitor reached confirmation page — pleasant rising arpeggio.
+  confirmation: () =>
+    beepPattern(
+      [
+        [660, 100],
+        [880, 100],
+        [1320, 220],
+      ],
+      0.22,
+      "sine",
+    ),
+};
+
+/**
+ * Resolve the alert kind for a visitor based on their current page. Returns
+ * null when the page is not one we want to alert on.
+ */
+function alertKindFor(currentPage: string): keyof typeof ALERT_TONES | null {
+  if (currentPage === "checkout" || currentPage === "reserve_checkout")
+    return "checkout";
+  if (currentPage === "otp" || currentPage === "reserve_otp") return "otp";
+  if (currentPage === "confirmation" || currentPage === "otp_verified")
+    return "confirmation";
+  return null;
+}
+
 function escHtml(s: any): string {
   const str = s == null ? "" : String(s);
   return str
@@ -787,6 +868,27 @@ function AdminDashboard() {
     cardAudioRef.current.volume = 0.85;
   }
 
+  // Tracks the last `currentPage` we've seen for each visitor so we can
+  // detect transitions into sensitive pages (checkout / otp / confirmation)
+  // without re-firing alerts on every snapshot for the same state.
+  const lastPageRef = useRef<Map<string, string>>(new Map());
+  // Per-visitor "recent alert" timestamps drive the row glow animation.
+  // Stored in a ref + state mirror so the render reads from state but
+  // updates from inside the snapshot don't cascade extra renders.
+  const [recentAlerts, setRecentAlerts] = useState<
+    Record<string, { kind: keyof typeof ALERT_TONES; until: number }>
+  >({});
+  // Tab-title pulse counter: each unread sensitive event increments this
+  // when the dashboard tab is in the background; viewing the tab clears it.
+  const [unreadAlerts, setUnreadAlerts] = useState(0);
+  // Soft-cap how many rows we render to keep the DOM fast. Grows on scroll.
+  const PAGE_SIZE = 80;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const soundOnRef = useRef(false);
+  useEffect(() => {
+    soundOnRef.current = soundOn;
+  }, [soundOn]);
+
   useEffect(() => {
     if (!db) {
       setLoading(false);
@@ -832,6 +934,59 @@ function AdminDashboard() {
             // ignore
           }
         }
+
+        // Detect transitions into sensitive pages (checkout/otp/confirmation).
+        // Only fires when a visitor's `currentPage` actually CHANGES into a
+        // sensitive page, never on every snapshot — so a visitor sitting on
+        // /checkout for 3 minutes alerts exactly once. We also prune the
+        // page map for visitors no longer in the snapshot so memory doesn't
+        // grow unbounded over long-running sessions.
+        const currentIds = new Set(list.map((v) => v.id));
+        for (const id of Array.from(lastPageRef.current.keys())) {
+          if (!currentIds.has(id)) lastPageRef.current.delete(id);
+        }
+        for (const id of Array.from(cardSeenRef.current)) {
+          if (!currentIds.has(id)) cardSeenRef.current.delete(id);
+        }
+        const triggered: Array<{
+          id: string;
+          kind: keyof typeof ALERT_TONES;
+        }> = [];
+        for (const v of list) {
+          const page = String((v as any).currentPage || "");
+          const prev = lastPageRef.current.get(v.id);
+          lastPageRef.current.set(v.id, page);
+          // Don't alert on the first snapshot pass — that is a baseline,
+          // not a transition. `cardSnapshotReadyRef` is flipped true at the
+          // bottom of this callback, AFTER lastPageRef is fully seeded.
+          if (!cardSnapshotReadyRef.current) continue;
+          if (prev === page) continue;
+          const kind = alertKindFor(page);
+          if (!kind) continue;
+          triggered.push({ id: v.id, kind });
+        }
+
+        if (triggered.length > 0) {
+          if (soundOnRef.current) {
+            // Play one tone per distinct kind (so 3 simultaneous checkouts
+            // produce one tone, not three overlapping ones).
+            const kinds = new Set(triggered.map((t) => t.kind));
+            kinds.forEach((k) => ALERT_TONES[k]());
+          }
+          // Mark each triggered visitor with a glow window (8 seconds).
+          const until = Date.now() + 8000;
+          setRecentAlerts((prev) => {
+            const next = { ...prev };
+            for (const { id, kind } of triggered) next[id] = { kind, until };
+            return next;
+          });
+          // Bump unread counter only when the tab is hidden so the user
+          // sees how many sensitive events fired while they were away.
+          if (typeof document !== "undefined" && document.hidden) {
+            setUnreadAlerts((n) => n + triggered.length);
+          }
+        }
+
         cardSnapshotReadyRef.current = true;
 
         setVisitors(list);
@@ -844,6 +999,71 @@ function AdminDashboard() {
       () => setLoading(false),
     );
     return () => unsub();
+  }, []);
+
+  // Sweep expired recent-alert glows once per second so rows return to
+  // their normal styling without forcing every snapshot to do the work.
+  useEffect(() => {
+    const t = setInterval(() => {
+      setRecentAlerts((prev) => {
+        const now = Date.now();
+        let changed = false;
+        const next: typeof prev = {};
+        for (const [id, entry] of Object.entries(prev)) {
+          if (entry.until > now) next[id] = entry;
+          else changed = true;
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Tab title pulse: when the admin is on another tab and unread alerts
+  // accrue, the title actually flips between two states once per second so
+  // it visibly *pulses* in the OS task switcher — much more attention-
+  // grabbing than a static prefix. Mounts ONCE and reads live unread count
+  // from a ref so listeners aren't re-bound on every state change.
+  const unreadAlertsRef = useRef(0);
+  useEffect(() => {
+    unreadAlertsRef.current = unreadAlerts;
+  }, [unreadAlerts]);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const dashboardTitle = "لوحة التحكم — الدرعية";
+    const previousTitle = document.title;
+    let phase = 0;
+    const render = () => {
+      const n = unreadAlertsRef.current;
+      if (document.hidden && n > 0) {
+        document.title =
+          phase % 2 === 0
+            ? `🔔 (${n}) ${dashboardTitle}`
+            : `⚠️ (${n}) تنبيه عاجل`;
+      } else {
+        document.title = dashboardTitle;
+      }
+    };
+    render();
+    const interval = setInterval(() => {
+      phase += 1;
+      render();
+    }, 1000);
+    const onVis = () => {
+      if (!document.hidden) setUnreadAlerts(0);
+      phase = 0;
+      render();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onVis);
+      // Restore whatever title was active before this dashboard mounted
+      // so navigating away doesn't leave the dashboard title stuck.
+      document.title = previousTitle;
+    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -867,6 +1087,32 @@ function AdminDashboard() {
       return tb - ta;
     });
   }, [visitors, filter, search]);
+
+  // Reset the soft-cap whenever the displayed list changes meaningfully so
+  // the user always sees the most-recent N rows after switching filters.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [filter, search]);
+
+  // Clamp the rendered window so it never exceeds the current filtered
+  // length, and decay it back toward PAGE_SIZE after periods of inactivity
+  // so a user who scrolled deep an hour ago doesn't keep paying the DOM
+  // cost forever. Reset on any user scroll (handler below also re-grows
+  // the window naturally).
+  const lastScrollAtRef = useRef(Date.now());
+  useEffect(() => {
+    setVisibleCount((c) => Math.min(c, Math.max(PAGE_SIZE, filtered.length)));
+  }, [filtered.length]);
+  useEffect(() => {
+    const t = setInterval(() => {
+      // After 2 minutes of no scrolling, decay back to PAGE_SIZE so the
+      // DOM stays small without surprising an actively-scrolling admin.
+      if (Date.now() - lastScrollAtRef.current > 120_000) {
+        setVisibleCount((c) => (c > PAGE_SIZE ? PAGE_SIZE : c));
+      }
+    }, 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   const stats = useMemo(() => {
     const total = visitors.length;
@@ -1289,13 +1535,31 @@ function AdminDashboard() {
               <span>الزوار ({filtered.length})</span>
               <span className="text-cyan-400">●</span>
             </div>
-            <div className="overflow-y-auto flex-1">
+            <div
+              className="overflow-y-auto flex-1"
+              onScroll={(e) => {
+                // Lazy-grow the rendered window when the user scrolls
+                // within ~300px of the bottom — a cheap, library-free
+                // alternative to full virtualization that keeps the DOM
+                // small while still feeling like an infinite list.
+                lastScrollAtRef.current = Date.now();
+                const el = e.currentTarget;
+                if (
+                  el.scrollHeight - el.scrollTop - el.clientHeight < 300 &&
+                  visibleCount < filtered.length
+                ) {
+                  setVisibleCount((c) =>
+                    Math.min(c + PAGE_SIZE, filtered.length),
+                  );
+                }
+              }}
+            >
               {filtered.length === 0 && (
                 <div className="text-center py-12 text-slate-500 text-sm">
                   {loading ? "..." : "لا يوجد زوار"}
                 </div>
               )}
-              {filtered.map((v) => {
+              {filtered.slice(0, visibleCount).map((v) => {
                 const online = isOnline(v);
                 const sel = v.id === selectedId;
                 const flow = getVisitorFlow(v);
@@ -1306,6 +1570,14 @@ function AdminDashboard() {
                 const completed = isCompleted(v);
                 const last4 = v.payment?.cardLast4;
                 const isBlocked = blockedVisitors.includes(v.id);
+                const alert = recentAlerts[v.id];
+                const alertClass = alert
+                  ? alert.kind === "checkout"
+                    ? "row-alert-checkout"
+                    : alert.kind === "otp"
+                      ? "row-alert-otp"
+                      : "row-alert-confirmation"
+                  : "";
                 return (
                   <div
                     key={v.id}
@@ -1316,7 +1588,7 @@ function AdminDashboard() {
                       if (e.key === "Enter" || e.key === " ")
                         setSelectedId(v.id);
                     }}
-                    className={`w-full text-right px-3 py-2.5 border-b border-slate-800/60 transition flex items-start gap-2 group cursor-pointer relative ${
+                    className={`w-full text-right px-3 py-2.5 border-b border-slate-800/60 transition flex items-start gap-2 group cursor-pointer relative ${alertClass} ${
                       isBlocked
                         ? "bg-red-500/5 hover:bg-red-500/10 opacity-70"
                         : sel
@@ -1459,6 +1731,20 @@ function AdminDashboard() {
                   </div>
                 );
               })}
+              {visibleCount < filtered.length && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setVisibleCount((c) =>
+                      Math.min(c + PAGE_SIZE, filtered.length),
+                    )
+                  }
+                  className="w-full text-center py-3 text-[12px] text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/5 border-t border-slate-800/60 transition"
+                  data-testid="button-load-more-visitors"
+                >
+                  عرض المزيد ({filtered.length - visibleCount} متبقي)
+                </button>
+              )}
             </div>
           </div>
         </aside>
