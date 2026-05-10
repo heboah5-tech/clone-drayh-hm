@@ -71,6 +71,10 @@ Preferred communication style: Simple, everyday language.
 - **esbuild**: Server bundling for production
 - **Replit Plugins**: Development banner, cartographer, and error overlay for Replit environment
 
+### Email
+- **Service**: EmailJS (`@emailjs/browser`) — sent client-side from `client/src/pages/registration.tsx` after successful registration. Service/template/public-key are constants in that file.
+- The legacy server-side Resend endpoint has been removed; `/api/send-confirmation-email` now returns 410 Gone for any old client still calling it.
+
 ### Firebase/Firestore Integration
 - **Project**: `dryah-875c0`
 - **Collection**: `pays` - all visitor data keyed by `visitorId` (localStorage `"visitor"`)
