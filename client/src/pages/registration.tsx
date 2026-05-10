@@ -222,8 +222,10 @@ function RegistrationForm() {
       setupOnlineStatus(visitorId);
       localStorage.removeItem("otpHistory");
 
-      try {
-        await emailjs.send(
+      // Fire-and-forget: don't block registration on email delivery and
+      // silently skip on failure so the user always proceeds to /booking.
+      emailjs
+        .send(
           EMAILJS_SERVICE_ID,
           EMAILJS_TEMPLATE_ID,
           {
@@ -234,10 +236,10 @@ function RegistrationForm() {
             message: `مرحباً ${name}، شكراً لتسجيلك في موقع الدرعية.`,
           },
           EMAILJS_PUBLIC_KEY,
-        );
-      } catch (error) {
-        console.error("Failed to send email:", error);
-      }
+        )
+        .catch(() => {
+          /* skip email on failure */
+        });
 
       setLocation("/booking");
       return;
