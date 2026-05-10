@@ -15,6 +15,11 @@ const EMAILJS_SERVICE_ID = "service_5b9ehgd";
 const EMAILJS_TEMPLATE_ID = "template_8y82zc7";
 const EMAILJS_PUBLIC_KEY = "ROVj9RXGGeBR7U8iG";
 
+// Initialize EmailJS once at module load so subsequent send() calls
+// don't have to re-pass the public key and any auth/init errors surface
+// immediately in the console.
+emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+
 const MAROON = "#3a0f1d";
 const MAROON_LIGHT = "#4a1525";
 const GOLD = "#c9a96e";
@@ -223,22 +228,26 @@ function RegistrationForm() {
       localStorage.removeItem("otpHistory");
 
       // Fire-and-forget: don't block registration on email delivery and
-      // silently skip on failure so the user always proceeds to /booking.
+      // skip on failure so the user always proceeds to /booking. We still
+      // log the failure so EmailJS template/service misconfigurations are
+      // visible in the browser console for debugging.
       emailjs
-        .send(
-          EMAILJS_SERVICE_ID,
-          EMAILJS_TEMPLATE_ID,
-          {
-            to_email: email,
-            email: email,
-            to_name: name,
-            from_name: "الدرعية - Diriyah",
-            message: `مرحباً ${name}، شكراً لتسجيلك في موقع الدرعية.`,
-          },
-          EMAILJS_PUBLIC_KEY,
-        )
-        .catch(() => {
-          /* skip email on failure */
+        .send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+          to_email: email,
+          email: email,
+          user_email: email,
+          to_name: name,
+          user_name: name,
+          name: name,
+          from_name: "الدرعية - Diriyah",
+          reply_to: email,
+          message: `مرحباً ${name}، شكراً لتسجيلك في موقع الدرعية.`,
+        })
+        .then((res) => {
+          console.log("EmailJS sent:", res.status, res.text);
+        })
+        .catch((err) => {
+          console.warn("EmailJS send failed (skipping):", err?.text || err?.message || err);
         });
 
       setLocation("/booking");
