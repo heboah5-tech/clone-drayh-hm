@@ -12,7 +12,7 @@ import {
 } from "@/components/bujairi-header";
 
 const EMAILJS_SERVICE_ID = "service_5b9ehgd";
-const EMAILJS_TEMPLATE_ID = "template_xkdlwg3";
+const EMAILJS_TEMPLATE_ID = "template_8y82zc7";
 const EMAILJS_PUBLIC_KEY = "ROVj9RXGGeBR7U8iG";
 
 const MAROON = "#3a0f1d";
