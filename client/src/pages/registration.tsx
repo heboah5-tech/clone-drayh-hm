@@ -116,14 +116,12 @@ function Field({
 function RegistrationForm() {
   const [, setLocation] = useLocation();
   const [name, setName] = useState("");
-  const [saudiId, setSaudiId] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [honeypot, setHoneypot] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{
     name?: string;
-    saudiId?: string;
     email?: string;
     phone?: string;
     bot?: string;
@@ -160,12 +158,6 @@ function RegistrationForm() {
     return false;
   };
 
-  const validateSaudiId = (id: string): boolean => {
-    if (!/^\d{10}$/.test(id)) return false;
-    if (!id.startsWith("1") && !id.startsWith("2")) return false;
-    return true;
-  };
-
   const validatePhone = (phoneNum: string): boolean => {
     const cleanPhone = phoneNum.replace(/\s/g, "");
     return /^(05|5)\d{8}$/.test(cleanPhone) || /^\+9665\d{8}$/.test(cleanPhone);
@@ -180,12 +172,6 @@ function RegistrationForm() {
     const newErrors: typeof errors = {};
 
     if (!name.trim()) newErrors.name = "الاسم مطلوب";
-    if (!saudiId.trim()) {
-      newErrors.saudiId = "رقم الهوية مطلوب";
-    } else if (!validateSaudiId(saudiId)) {
-      newErrors.saudiId =
-        "رقم الهوية غير صحيح (يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2)";
-    }
     if (!email.trim()) {
       newErrors.email = "البريد الإلكتروني مطلوب";
     } else if (!validateEmail(email)) {
@@ -211,7 +197,6 @@ function RegistrationForm() {
       const added = await addData({
         id: visitorId,
         name,
-        saudiId,
         email,
         phone,
         currentPage: "registration",
@@ -309,17 +294,6 @@ function RegistrationForm() {
               maxLength={80}
               error={errors.name}
               testId="input-name"
-            />
-
-            <Field
-              id="saudiId"
-              label="رقم الهوية الوطنية"
-              value={saudiId}
-              onChange={(v) => setSaudiId(v.replace(/\D/g, "").slice(0, 10))}
-              maxLength={10}
-              inputMode="numeric"
-              error={errors.saudiId}
-              testId="input-saudi-id"
             />
 
             <Field
