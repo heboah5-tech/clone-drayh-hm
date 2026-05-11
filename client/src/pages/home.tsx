@@ -1,370 +1,446 @@
 import { useState } from "react";
-import { Menu, X, MapPin, Clock } from "lucide-react";
+import { Menu, X, MapPin, Clock, Phone, Mail } from "lucide-react";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
 
 import seasonImage from "@assets/8ae74984605c4076bfde52a6a35b8bca_1772291393428.webp";
 import restaurantImage from "@assets/50241d7ddb7a4537801bdee04bd13d27_1772291393426.webp";
 import exploreImage from "@assets/a49e06e53a5946eca35727c91bc458c8.webp";
-import heroImage from "@assets/bab0035fd04a490390b62d59736704f0_(1)_1778246846845.webp";
 
 const LOGO_URL =
   "https://assets-diriyah.diriyah.me/4388214a05a84e7c910b39d5b9067ef3?width=750&quality=80&transform=true&format=webp";
 
-const HERO_IMAGE_URL = heroImage;
+const HERO_IMAGE_URL =
+  "https://assets-diriyah.diriyah.me/37694b856a414197ac77a4d1ea9ce588";
 
-// Brand palette (Diriyah Wix reference)
-// ORANGE darkened from #C26C48 → #A85734 so white CTA text passes WCAG AA (≥ 4.5:1).
-const ORANGE = "#A85734";
-const ORANGE_DEEP = "#8E4729";
-const GOLD = "#D4B080";
-const BEIGE = "#F0EDE4";
-
-type BookingCardProps = {
-  image: string;
-  title: string;
-  subTitle?: string;
-  price?: string;
-  description: string;
-  buttonText: string;
-  href: string;
-  testId: string;
-};
-
-function BookingCard({
-  image,
-  title,
-  subTitle,
-  price,
-  description,
-  buttonText,
-  href,
-  testId,
-}: BookingCardProps) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className="flex flex-col mb-16 bg-white overflow-hidden"
-      data-testid={`card-${testId}`}
-    >
-      <div className="relative aspect-[4/3] w-full mb-6 overflow-hidden">
-        <img
-          src={image}
-          alt={title}
-          className="w-full h-full object-cover"
-         
-        />
-      </div>
-      <div className="flex flex-col items-center text-center px-4">
-        <h3
-          className="text-2xl font-bold mb-4 text-[#222]"
-          data-testid={`text-${testId}-title`}
-        >
-          {title}
-        </h3>
-        {subTitle && (
-          <p className="text-gray-600 mb-2 text-sm leading-relaxed">
-            {subTitle}
-          </p>
-        )}
-        {price && <p className="font-bold text-lg mb-4">{price}</p>}
-        <p className="text-gray-500 mb-8 max-w-md leading-relaxed whitespace-pre-line text-sm">
-          {description}
-        </p>
-        <Link
-          href={href}
-          data-testid={`button-${testId}`}
-          className="text-white px-12 py-3 rounded-md font-bold transition-transform hover:scale-105 active:scale-95"
-          style={{ backgroundColor: ORANGE }}
-        >
-          {buttonText}
-        </Link>
-      </div>
-    </motion.div>
-  );
-}
+// Darker coral so white CTA text passes WCAG AA contrast (≥ 4.5:1 on accent).
+const ACCENT = "#b85a2e";
+const ACCENT_DARK = "#9b4a24";
 
 function Header() {
-  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
-    <>
-      <header className="absolute top-0 left-0 right-0 z-50 flex justify-between items-center px-6 py-6">
+    <header className="sticky top-0 left-0 right-0 z-50 bg-[#1a0a10]/95 backdrop-blur">
+      <div className="flex items-center justify-between px-4 py-3">
+        <button
+          data-testid="button-menu"
+          onClick={() => setMenuOpen(!menuOpen)}
+          className="text-white/80 p-1"
+        >
+          {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
         <img
           src={LOGO_URL}
           alt="الدرعية"
           className="h-10 object-contain"
           data-testid="img-logo"
         />
-        <button
-          onClick={() => setOpen(!open)}
-          className="text-white p-1"
-          data-testid="button-menu"
-          aria-label="القائمة"
-        >
-          {open ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
-        </button>
-      </header>
+        <div className="w-7" />
+      </div>
 
-      {open && (
+      {menuOpen && (
         <nav
-          className="fixed top-[72px] left-0 right-0 z-50 bg-black/85 backdrop-blur px-6 py-4 space-y-2"
+          className="bg-[#4a1525] border-t border-white/10 px-5 py-3 space-y-1"
           data-testid="nav-mobile-menu"
         >
           {[
-            { href: "#booking", label: "خيارات الحجز" },
-            { href: "#parking", label: "المواقف" },
-            { href: "#hours", label: "ساعات العمل" },
-          ].map((it) => (
+            { href: "#hero", label: "الرئيسية", id: "home" },
+            { href: "#season", label: "موسم الدرعية", id: "season" },
+            { href: "#restaurants", label: "المطاعم", id: "restaurants" },
+            { href: "#explore", label: "استكشف", id: "explore" },
+            { href: "#info", label: "معلومات", id: "info" },
+          ].map((item) => (
             <a
-              key={it.href}
-              href={it.href}
-              onClick={() => setOpen(false)}
-              className="block text-white text-base py-2 border-b border-white/10 last:border-b-0"
+              key={item.id}
+              href={item.href}
+              onClick={() => setMenuOpen(false)}
+              className="block text-white/80 text-sm py-2.5 border-b border-white/5 last:border-b-0"
+              data-testid={`link-${item.id}`}
             >
-              {it.label}
+              {item.label}
             </a>
           ))}
         </nav>
       )}
-    </>
+    </header>
   );
 }
 
-function Hero() {
+function HeroImage() {
   return (
     <section
-      className="relative h-[85vh] w-full overflow-hidden"
+      id="hero"
+      className="relative w-full overflow-hidden"
       data-testid="section-hero"
     >
-      <Header />
-      <div className="absolute inset-0">
+      <div className="relative h-[260px] md:h-[360px] overflow-hidden">
         <img
           src={HERO_IMAGE_URL}
-          alt="الدرعية"
+          alt="مطل البجيري"
           className="w-full h-full object-cover"
-         
+          data-testid="img-hero"
         />
-        <div className="absolute inset-0 bg-black/40" />
-      </div>
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/60" />
 
-      <div className="relative h-full flex flex-col justify-end pb-20 px-8 max-w-4xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8 }}
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-end text-center px-6 pb-7"
+          data-testid="hero-text-overlay"
         >
-          <p
-            className="font-medium mb-4 text-sm tracking-widest"
-            style={{ color: GOLD }}
-            data-testid="text-hero-eyebrow"
-          >
-            خطط لزيارتك
-          </p>
           <h1
-            className="text-white text-4xl md:text-6xl font-bold leading-tight mb-6"
+            className="text-white text-2xl md:text-4xl font-bold leading-snug drop-shadow-lg"
+            style={{ textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}
             data-testid="text-hero-title"
           >
-            تعرّف على مطل البجيري قبل زيارتك
+            تعرّف على مطل البجيري
+            <br />
+            قبل زيارتك
           </h1>
-          <p
-            className="text-white text-base md:text-xl leading-relaxed font-light opacity-90 max-w-xl"
-            data-testid="text-hero-subtitle"
-          >
-            حيّاكم في مطل البجيري خطّط لزيارتك وعش تجربة جديدة.
-          </p>
-        </motion.div>
+        </div>
       </div>
+
+      <SubNav />
     </section>
   );
 }
 
-function VerticalNav() {
+function SubNav() {
   const items = [
-    { href: "#booking", label: "خيارات الحجز" },
-    { href: "#parking", label: "المواقف" },
-    { href: "#hours", label: "ساعات العمل" },
+    { href: "#hero", label: "الرئيسية" },
+    { href: "#restaurants", label: "المطاعم" },
+    { href: "#info", label: "إجابات شائعة" },
+    { href: "#season", label: "أخبار" },
+    { href: "#info", label: "اتصل بنا" },
   ];
   return (
     <nav
-      className="py-12 px-8 flex flex-col items-start space-y-4 font-medium text-lg border-b border-gray-100"
-      style={{ color: ORANGE }}
-      data-testid="nav-vertical"
+      className="bg-[#1a0a10] border-y border-white/5"
+      data-testid="nav-sub"
     >
-      {items.map((it) => (
-        <a
-          key={it.href}
-          href={it.href}
-          className="hover:opacity-70 transition-opacity"
-          data-testid={`link-vnav-${it.href.slice(1)}`}
-        >
-          {it.label}
-        </a>
-      ))}
+      <div className="flex items-center justify-center gap-4 px-3 py-2.5 overflow-x-auto">
+        {items.map((it, i) => (
+          <a
+            key={i}
+            href={it.href}
+            className="shrink-0 text-white/70 hover:text-white text-[12px] whitespace-nowrap"
+            data-testid={`link-sub-${i}`}
+          >
+            {it.label}
+          </a>
+        ))}
+      </div>
     </nav>
   );
 }
 
-function BookingSection() {
+function FeaturedBadge({ label }: { label: string }) {
   return (
-    <section id="booking" className="pt-20" data-testid="section-booking">
-      <div
-        className="text-3xl mb-12 px-2"
-        style={{ color: GOLD }}
-        data-testid="text-booking-heading"
+    <div className="flex justify-center mb-3">
+      <span
+        className="inline-block text-white text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full"
+        style={{ backgroundColor: ACCENT }}
+        data-testid="badge-featured"
       >
-        خيارات الحجز
-      </div>
-
-      <BookingCard
-        testId="season"
-        image={seasonImage}
-        title="موسم الدرعية 26"
-        description={
-          "بدأ موسم الدرعية بفعاليات وتجارب ثرية من #أرض_ترويك.\n" +
-          "تقويم يتضمن الفنون والثقافة، والعروض الحية وغيرها من الفعاليات.\n\n" +
-          "استكشف فعاليات وتجارب الدرعية، لحجز تذكرتك"
-        }
-        buttonText="احجز تذكرتك"
-        href="/registration"
-      />
-
-      <BookingCard
-        testId="dining"
-        image={restaurantImage}
-        title="جرّب مطاعم مطل البجيري"
-        subTitle="سعر التذكرة: 50 ريال للشخص (يومياً بعد الساعة 5 مساءً)"
-        description={
-          "احجز طاولتك الآن واحصل على تذكرة دخول لمطل البجيري وحي الطريف التاريخي.\n" +
-          "رسوم الحجز قابلة للاسترداد في جميع مطاعم ومقاهي مطل البجيري."
-        }
-        buttonText="احجز طاولتك"
-        href="/restaurants"
-      />
-
-      <BookingCard
-        testId="discovery"
-        image={exploreImage}
-        title="استكشف الدرعية - تذكرة دخول"
-        price="سعر التذكرة: 50 ريال للشخص (يومياً بعد الساعة 5 مساءً)"
-        description={
-          "لزيارة مطل البجيري وحي الطريف التاريخي، يرجى حجز تذكرة دخول.\n\n" +
-          "رسوم الحجز قابلة للاسترداد في جميع مطاعم ومقاهي مطل البجيري."
-        }
-        buttonText="احجز تذكرة الدخول"
-        href="/registration"
-      />
-    </section>
+        {label}
+      </span>
+    </div>
   );
 }
 
-function ParkingSection() {
-  return (
-    <section id="parking" className="mt-24" data-testid="section-parking">
-      <div
-        className="flex items-center gap-3 text-3xl mb-8"
-        style={{ color: ORANGE }}
-      >
-        <MapPin />
-        <span className="font-light">المواقف</span>
-      </div>
-
-      <div className="space-y-4">
-        <div className="bg-gray-50 p-6 rounded-lg" data-testid="card-parking-self">
-          <h4 className="font-bold text-lg mb-2 text-right">الوقوف الذاتي</h4>
-          <p className="text-gray-600 text-sm">3 ساعات بـ 30 ريال</p>
-          <p className="text-gray-600 text-sm">تضاف 10 ريال على كل ساعة*</p>
-        </div>
-
-        <div
-          className="bg-gray-50 p-6 rounded-lg flex justify-between items-center"
-          data-testid="card-parking-valet"
-        >
-          <span className="text-gray-600 text-sm">100 ريال</span>
-          <h4 className="font-bold text-lg text-right">خدمة صف السيارات</h4>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function HoursSection() {
-  return (
-    <section id="hours" className="mt-24" data-testid="section-hours">
-      <div
-        className="flex items-center gap-3 text-3xl mb-8"
-        style={{ color: ORANGE }}
-      >
-        <Clock />
-        <span className="font-light">ساعات العمل</span>
-      </div>
-
-      <div className="space-y-8">
-        <div data-testid="hours-bujairi">
-          <h4 className="font-bold text-xl mb-4">مطل البجيري</h4>
-          <p className="text-gray-700 text-sm">الأحد - الأربعاء</p>
-          <p className="text-gray-600 text-sm mb-3">
-            من 10 صباحاً حتى 12 منتصف الليل
-          </p>
-          <p className="text-gray-700 text-sm">الخميس - السبت</p>
-          <p className="text-gray-600 text-sm">من 10 صباحاً حتى 1 صباحاً</p>
-        </div>
-
-        <div data-testid="hours-turaif">
-          <h4 className="font-bold text-xl mb-4">حي الطريف</h4>
-          <p className="text-gray-700 text-sm">السبت - الخميس</p>
-          <p className="text-gray-600 text-sm mb-3">
-            من 10 صباحاً حتى 12 منتصف الليل
-          </p>
-          <p className="text-gray-700 text-sm">الجمعة</p>
-          <p className="text-gray-600 text-sm">من 2 ظهراً حتى 12 منتصف الليل</p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function MapSection() {
+function SeasonSection() {
   return (
     <section
-      className="py-20 px-6 flex flex-col items-center"
-      style={{ backgroundColor: BEIGE }}
-      data-testid="section-map"
+      id="season"
+      className="bg-[#f5efe6] pt-6 pb-3 px-4"
+      data-testid="section-season"
     >
-      <div className="max-w-2xl w-full relative">
-        <div
-          className="w-full aspect-square rounded-md overflow-hidden bg-white/40"
-          style={{
-            backgroundImage: `
-              repeating-linear-gradient(0deg, transparent, transparent 23px, rgba(0,0,0,0.06) 23px, rgba(0,0,0,0.06) 24px),
-              repeating-linear-gradient(90deg, transparent, transparent 23px, rgba(0,0,0,0.06) 23px, rgba(0,0,0,0.06) 24px)
-            `,
-          }}
-        >
-          <div className="w-full h-full flex items-center justify-center">
-            <div
-              className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
-              style={{ backgroundColor: ORANGE }}
+      <div className="max-w-md mx-auto">
+        <FeaturedBadge label="مميز" />
+        <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+          <div className="relative h-44 overflow-hidden">
+            <img
+              src={seasonImage}
+              alt="موسم الدرعية"
+              className="w-full h-full object-cover"
+            />
+          </div>
+
+          <div className="p-5">
+            <h3
+              className="text-[#4a1525] font-bold text-lg mb-2"
+              data-testid="text-season-title"
             >
-              <MapPin className="w-6 h-6 text-white" fill="white" />
-            </div>
+              موسم الدرعية 26
+            </h3>
+            <p
+              className="text-[#7a6b5f] text-[12px] leading-relaxed mb-5"
+              data-testid="text-season-description"
+            >
+              يبدأ موسم الدرعية بفعاليات وتجارب ثرية تبدأ من أول فبراير وحتى آخر
+              مارس
+            </p>
+            <Link
+              href="/tickets"
+              data-testid="button-season-tickets"
+              className="block w-full text-center text-white text-sm py-3 rounded-xl font-semibold transition-colors"
+              style={{ backgroundColor: ACCENT }}
+              onMouseEnter={(e) =>
+                ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+                  ACCENT_DARK)
+              }
+              onMouseLeave={(e) =>
+                ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+                  ACCENT)
+              }
+            >
+              اعرف بالمزيد
+            </Link>
           </div>
         </div>
-        <div className="mt-8 flex justify-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-            className="w-8 h-8 border-4 rounded-full"
-            style={{
-              borderColor: "rgba(0,0,0,0.12)",
-              borderTopColor: ORANGE,
-            }}
-          />
+      </div>
+    </section>
+  );
+}
+
+function RestaurantSection() {
+  return (
+    <section
+      id="restaurants"
+      className="bg-[#f5efe6] pt-3 pb-3 px-4"
+      data-testid="section-restaurants"
+    >
+      <div className="max-w-md mx-auto">
+        <h3
+          className="text-center text-[#4a1525] text-lg font-bold mb-4"
+          data-testid="text-restaurants-heading"
+        >
+          حجز مطاعم مطل البجيري
+        </h3>
+
+        <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+          <div className="relative h-44 overflow-hidden">
+            <img
+              src={restaurantImage}
+              alt="مطاعم مطل البجيري"
+              className="w-full h-full object-cover"
+            />
+          </div>
+
+          <div className="p-5">
+            <p
+              className="text-[#7a6b5f] text-[12px] leading-relaxed mb-4"
+              data-testid="text-restaurant-desc"
+            >
+              أكثر من ١٥ مطعم عالمي وسعودي في قلب الدرعية التاريخية، احجز طاولتك
+              واستمتع بتجربة طعام لا تُنسى.
+            </p>
+            <Link
+              href="/restaurants"
+              data-testid="button-book-restaurant"
+              className="block w-full text-center text-white text-sm py-3 rounded-xl font-semibold transition-colors"
+              style={{ backgroundColor: ACCENT }}
+              onMouseEnter={(e) =>
+                ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+                  ACCENT_DARK)
+              }
+              onMouseLeave={(e) =>
+                ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+                  ACCENT)
+              }
+            >
+              احجز طاولتك
+            </Link>
+          </div>
         </div>
-        <p className="text-center mt-12 text-sm text-gray-500">
-          جميع الحقوق محفوظة © 2024
+      </div>
+    </section>
+  );
+}
+
+function ExploreSection() {
+  return (
+    <section
+      id="explore"
+      className="relative py-10 px-4"
+      data-testid="section-explore"
+    >
+      <div className="absolute inset-0">
+        <img
+          src={exploreImage}
+          alt="استكشف الدرعية"
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-[#1a0a10]/85" />
+      </div>
+
+      <div className="relative z-10 max-w-md mx-auto text-center">
+        <div className="mb-5 flex justify-center">
+          <div className="px-8 py-3 border border-[#c9a96e]/40">
+            <span
+              className="text-[#c9a96e] text-xl font-bold tracking-[0.2em] block leading-tight"
+              style={{ fontFamily: "serif" }}
+              data-testid="text-bujairi-logo"
+            >
+              BUJAIRI
+            </span>
+            <span className="text-[#c9a96e]/60 text-[9px] tracking-[0.35em] block mt-1">
+              TERRACE
+            </span>
+          </div>
+        </div>
+
+        <h3
+          className="text-white text-lg font-bold mb-3"
+          data-testid="text-explore-title"
+        >
+          استكشف الدرعية - تذكرة دخول
+        </h3>
+        <p
+          className="text-white/70 text-[12px] mb-1"
+          data-testid="text-explore-price"
+        >
+          سعر التذكرة 50 ريال للشخص يومياً
         </p>
+        <p
+          className="text-white/50 text-[11px] mb-5"
+          data-testid="text-explore-note"
+        >
+          بعد الساعة 6 مساءً
+        </p>
+
+        <Link
+          href="/tickets"
+          data-testid="button-explore-details"
+          className="inline-block text-white text-sm font-bold rounded-xl px-8 py-3 transition-colors"
+          style={{ backgroundColor: ACCENT }}
+          onMouseEnter={(e) =>
+            ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+              ACCENT_DARK)
+          }
+          onMouseLeave={(e) =>
+            ((e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+              ACCENT)
+          }
+        >
+          احجز تذكرتك الآن
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function LocationCard() {
+  return (
+    <div
+      className="bg-white rounded-2xl p-5 shadow-sm"
+      data-testid="card-location"
+    >
+      <div className="flex items-center gap-2.5 mb-3">
+        <MapPin className="w-4 h-4" style={{ color: ACCENT }} />
+        <h3 className="text-[#4a1525] font-bold text-sm">الموقع</h3>
+      </div>
+      <p className="text-[#7a6b5f] text-[12px] leading-relaxed">
+        حي البجيري، الدرعية
+        <br />
+        الرياض - المملكة العربية السعودية
+      </p>
+    </div>
+  );
+}
+
+function ContactCard() {
+  return (
+    <div
+      className="bg-white rounded-2xl p-5 shadow-sm"
+      data-testid="card-contact"
+    >
+      <div className="flex items-center gap-2.5 mb-3">
+        <Phone className="w-4 h-4" style={{ color: ACCENT }} />
+        <h3 className="text-[#4a1525] font-bold text-sm">للتواصل</h3>
+      </div>
+      <p className="text-[#7a6b5f] text-[12px] leading-relaxed flex items-center gap-2 mb-1.5">
+        <Phone className="w-3 h-3 text-[#a09488]" /> 920000810
+      </p>
+      <p className="text-[#7a6b5f] text-[12px] leading-relaxed flex items-center gap-2">
+        <Mail className="w-3 h-3 text-[#a09488]" /> info@diriyah.sa
+      </p>
+    </div>
+  );
+}
+
+function HoursCard() {
+  const rows: [string, string][] = [
+    ["السبت - الأربعاء", "4:00 PM - 12:00 AM"],
+    ["الخميس", "4:00 PM - 1:00 AM"],
+    ["الجمعة", "2:00 PM - 1:00 AM"],
+  ];
+  return (
+    <div
+      className="bg-white rounded-2xl p-5 shadow-sm"
+      data-testid="card-hours"
+    >
+      <div className="flex items-center gap-2.5 mb-3">
+        <Clock className="w-4 h-4" style={{ color: ACCENT }} />
+        <h3 className="text-[#4a1525] font-bold text-sm">ساعات العمل</h3>
+      </div>
+      <div className="space-y-2">
+        {rows.map(([day, hours], i) => (
+          <div
+            key={i}
+            className="flex justify-between items-center text-[12px]"
+          >
+            <span className="text-[#7a6b5f]">{day}</span>
+            <span className="text-[#4a1525] font-medium" dir="ltr">
+              {hours}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function InfoSection() {
+  return (
+    <section
+      id="info"
+      className="bg-[#f5efe6] pt-6 pb-6 px-4 space-y-3"
+      data-testid="section-info"
+    >
+      <div className="max-w-md mx-auto space-y-3">
+        <LocationCard />
+        <ContactCard />
+        <HoursCard />
+      </div>
+    </section>
+  );
+}
+
+function MapStrip() {
+  return (
+    <section
+      className="relative h-40 bg-[#e2d5c3]"
+      data-testid="section-map"
+    >
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `
+            repeating-linear-gradient(0deg, transparent, transparent 19px, #c9b89e 19px, #c9b89e 20px),
+            repeating-linear-gradient(90deg, transparent, transparent 19px, #c9b89e 19px, #c9b89e 20px)
+          `,
+          opacity: 0.2,
+        }}
+      />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center shadow-md"
+          style={{ backgroundColor: ACCENT }}
+        >
+          <MapPin className="w-5 h-5 text-white" fill="white" />
+        </div>
+        <div className="mt-2 bg-white/90 backdrop-blur-sm px-3 py-1 rounded shadow-sm">
+          <p className="text-[#4a1525] font-bold text-[10px]">الدرعية</p>
+        </div>
       </div>
     </section>
   );
@@ -372,24 +448,16 @@ function MapSection() {
 
 function Footer() {
   return (
-    <footer
-      className="py-12 flex flex-col items-center justify-center"
-      style={{ backgroundColor: ORANGE_DEEP }}
-      data-testid="section-footer"
-    >
-      <div className="flex gap-4 items-center">
+    <footer className="bg-[#1a0a10] py-6 px-4" data-testid="section-footer">
+      <div className="max-w-md mx-auto text-center">
         <img
           src={LOGO_URL}
           alt="الدرعية"
-          className="h-10 object-contain"
+          className="h-8 object-contain mx-auto mb-3 opacity-90"
         />
-        <div className="border-l border-white/40 h-8" />
-        <div className="flex flex-col text-white">
-          <span className="text-xs tracking-[0.2em] font-bold">DIRIYAH</span>
-          <span className="text-[10px] opacity-80 tracking-widest">
-            SEASON 23/24
-          </span>
-        </div>
+        <p className="text-white/40 text-[10px]">
+          © 2024 الدرعية. جميع الحقوق محفوظة
+        </p>
       </div>
     </footer>
   );
@@ -397,21 +465,14 @@ function Footer() {
 
 export default function Home() {
   return (
-    <div
-      className="min-h-screen bg-white text-right"
-      dir="rtl"
-      data-testid="page-home"
-    >
-      <Hero />
-      <VerticalNav />
-
-      <main className="max-w-4xl mx-auto px-6 py-10">
-        <BookingSection />
-        <ParkingSection />
-        <HoursSection />
-      </main>
-
-      <MapSection />
+    <div className="min-h-screen bg-[#f5efe6]" data-testid="page-home">
+      <Header />
+      <HeroImage />
+      <SeasonSection />
+      <RestaurantSection />
+      <ExploreSection />
+      <InfoSection />
+      <MapStrip />
       <Footer />
     </div>
   );

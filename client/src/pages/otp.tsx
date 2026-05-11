@@ -259,13 +259,6 @@ function PaymentVerify() {
       setOtpResult(status);
       setIsWaiting(false);
       if (status === "approved") {
-        // Mark explicit "otp_verified" stage so the admin dashboard can
-        // distinguish "OTP submitted, awaiting approval" (currentPage="otp")
-        // from "OTP approved, transitioning to confirmation"
-        // (currentPage="otp_verified"). Without this, ticket-flow step 5
-        // would never be reached since users go straight from step 4 (otp)
-        // to step 6 (confirmation).
-        handleCurrentPage("otp_verified").catch(() => {});
         setTimeout(() => setLocation("/confirmation"), 2000);
       }
     });

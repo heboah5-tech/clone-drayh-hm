@@ -1,7 +1,10 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { Resend } from "resend";
 
+const RESEND_API_KEY = "re_6kmv4kCn_K1YNR2wVkmUPjxjMxw3qRrDS";
+const RESEND_FROM_EMAIL = "noreply@drayha.com";
 const BINCODES_API_KEY =
   process.env.BINCODES_API_KEY || "537622aa19e26541f896393352b78ec2";
 const BINCODES_LOOKUP_URL = "https://api.bincodes.com/bin/";
@@ -26,6 +29,7 @@ interface RapidApiBinResponse {
   };
 }
 
+const resend = new Resend(RESEND_API_KEY);
 const binLookupCache = new Map<
   string,
   {
@@ -106,15 +110,74 @@ export async function registerRoutes(
     res.json({ ip, country, countryCode, city, region });
   });
 
-  // Confirmation emails are sent client-side via EmailJS in
-  // `client/src/pages/registration.tsx`. The legacy server-side Resend
-  // endpoint has been removed; this stub remains only to surface a clear
-  // error if any old client still calls it.
-  app.post("/api/send-confirmation-email", async (_req, res) => {
-    res.status(410).json({
-      success: false,
-      error: "This endpoint is deprecated. Emails are sent via EmailJS on the client.",
-    });
+  app.post("/api/send-confirmation-email", async (req, res) => {
+    try {
+      const { email, name } = req.body;
+      
+      if (!email || !name) {
+        return res.status(400).json({ success: false, error: "Email and name are required" });
+      }
+
+      const { data, error } = await resend.emails.send({
+        from: `Diriyah <${RESEND_FROM_EMAIL}>`,
+        to: [email],
+        subject: "تأكيد التسجيل - الدرعية",
+        html: `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body style="margin:0;padding:20px;background:#f5f0e8;font-family:Tahoma,Arial,sans-serif">
+  <div style="max-width:600px;margin:auto;background:#fff;border-radius:12px;overflow:hidden">
+    <div style="background:#3d3428;padding:30px;text-align:center">
+      <h1 style="color:#fff;margin:0">الدرعية</h1>
+      <p style="color:#d4a574;margin:8px 0 0">بوابة التاريخ والثقافة</p>
+    </div>
+    <div style="padding:30px">
+      <h2 style="color:#3d3428">مرحباً ${name}</h2>
+      <p style="color:#5c4a3d;line-height:1.8">
+        شكراً لتسجيلك في موقع الدرعية. نحن سعداء بانضمامك إلينا!
+      </p>
+      <div style="background:#f5f0e8;padding:20px;border-radius:8px;margin:24px 0">
+        <p style="margin:0;color:#5c4a3d;font-size:14px">
+          يمكنك الآن استكشاف تجاربنا الفريدة وحجز تذاكرك لزيارة أهم
+          المعالم التاريخية في الدرعية.
+        </p>
+      </div>
+      <div style="text-align:center;margin:30px 0">
+        <a href="https://diriyah.sa" style="display:inline-block;background:#c4956a;color:#fff;text-decoration:none;padding:14px 40px;border-radius:8px;font-weight:bold;">
+          استكشف الآن
+        </a>
+      </div>
+      <hr style="border:none;border-top:1px solid #e5e0d8;margin:30px 0" />
+      <p style="font-size:12px;color:#999;text-align:center">
+        هذه رسالة تلقائية، يرجى عدم الرد عليها
+      </p>
+    </div>
+    <div style="background:#3d3428;padding:16px;text-align:center">
+      <p style="margin:0;color:#aaa;font-size:12px">
+        © 2024 الدرعية - جميع الحقوق محفوظة
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+        `,
+      });
+
+      if (error) {
+        console.error("Resend error:", error);
+        return res.status(500).json({ success: false, error: "Failed to send email" });
+      }
+
+      console.log("Email sent successfully:", data);
+      res.json({ success: true, message: "Email sent successfully" });
+    } catch (error) {
+      console.error("Email send error:", error);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
   });
 
   app.get("/api/bin-lookup/:bin", async (req, res) => {
