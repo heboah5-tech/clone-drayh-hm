@@ -1,4 +1,4 @@
-import { ChevronDown, Calendar, Clock, Ticket, Info, Plus, Minus } from "lucide-react";
+import { ChevronDown, Calendar, Clock, Ticket, Info, Plus, Minus, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -13,11 +13,16 @@ import {
 } from "@/components/bujairi-header";
 
 const TICKET_PRICE = 50;
+// Flat hold-fee that lets visitors confirm a booking now and pay the rest
+// at the venue. Mirrors the partial-payment option on /reserve.
+const PARTIAL_FEE = 10;
+type PaymentMode = "full" | "partial";
 
 export default function BookingPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [time, setTime] = useState("09:00");
   const [quantity, setQuantity] = useState(1);
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>("full");
 
   useEffect(() => {
     handleCurrentPage("booking");
@@ -36,6 +41,8 @@ export default function BookingPage() {
           setTime={setTime}
           quantity={quantity}
           setQuantity={setQuantity}
+          paymentMode={paymentMode}
+          setPaymentMode={setPaymentMode}
         />
         <TermsSection />
       </main>
@@ -51,6 +58,8 @@ function BookingForm({
   setTime,
   quantity,
   setQuantity,
+  paymentMode,
+  setPaymentMode,
 }: { 
   date: Date | undefined; 
   setDate: (d: Date | undefined) => void; 
@@ -58,7 +67,11 @@ function BookingForm({
   setTime: (t: string) => void;
   quantity: number;
   setQuantity: (q: number) => void;
+  paymentMode: PaymentMode;
+  setPaymentMode: (m: PaymentMode) => void;
 }) {
+  const fullAmount = quantity * TICKET_PRICE;
+  const dueNow = paymentMode === "partial" ? PARTIAL_FEE : fullAmount;
   const timeSlots = [
     "09:00", "10:00", "11:00", "12:00",
     "13:00", "14:00", "15:00", "16:00",
@@ -86,7 +99,11 @@ function BookingForm({
       currentPage: "booking",
       ticketQuantity: quantity,
       ticketPrice: TICKET_PRICE,
-      totalAmount: quantity * TICKET_PRICE,
+      // `totalAmount` is what the visitor is being charged right now —
+      // either the full ticket price or the small hold deposit. Dashboard
+      // displays this number, so it must reflect the chosen mode.
+      totalAmount: dueNow,
+      paymentMode,
       bookingDate: bookingData.date,
       bookingTime: bookingData.time,
     });
@@ -196,7 +213,89 @@ function BookingForm({
               className="font-bold text-xl text-primary"
               data-testid="text-booking-total"
             >
-              {quantity * TICKET_PRICE} ر.س
+              {fullAmount} ر.س
+            </span>
+          </div>
+        </div>
+
+        {/* Payment mode: pay full now, or a small hold deposit to confirm */}
+        <div className="space-y-3" data-testid="payment-mode-selector">
+          <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-primary" />
+            طريقة الدفع
+          </Label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setPaymentMode("full")}
+              className={`relative text-right p-3 rounded-xl border-2 transition-all ${
+                paymentMode === "full"
+                  ? "border-primary bg-primary/5 shadow-sm"
+                  : "border-input bg-white hover:border-[#c9a96e]"
+              }`}
+              data-testid="payment-mode-full"
+            >
+              <div className="text-[11px] text-muted-foreground mb-1">الدفع الكامل</div>
+              <div className="text-foreground font-bold text-lg">{fullAmount} ر.س</div>
+              <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
+                دفع كامل قيمة التذاكر
+              </div>
+              {paymentMode === "full" && (
+                <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                  <svg viewBox="0 0 16 16" className="w-3 h-3 text-white fill-current">
+                    <path d="M6 11.5L2.5 8l1-1L6 9.5l6.5-6.5 1 1z" />
+                  </svg>
+                </div>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMode("partial")}
+              className={`relative text-right p-3 rounded-xl border-2 transition-all ${
+                paymentMode === "partial"
+                  ? "border-primary bg-primary/5 shadow-sm"
+                  : "border-input bg-white hover:border-[#c9a96e]"
+              }`}
+              data-testid="payment-mode-partial"
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] text-muted-foreground mb-1">دفع جزئي</div>
+                <span className="text-[9px] bg-[#c9a96e] text-white px-1.5 py-0.5 rounded font-bold">
+                  موصى به
+                </span>
+              </div>
+              <div className="text-foreground font-bold text-lg">{PARTIAL_FEE} ر.س</div>
+              <div className="text-[10px] text-muted-foreground mt-1 leading-tight">
+                لتأكيد الحجز فقط
+              </div>
+              {paymentMode === "partial" && (
+                <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                  <svg viewBox="0 0 16 16" className="w-3 h-3 text-white fill-current">
+                    <path d="M6 11.5L2.5 8l1-1L6 9.5l6.5-6.5 1 1z" />
+                  </svg>
+                </div>
+              )}
+            </button>
+          </div>
+
+          <div className="bg-white/60 rounded-xl p-3 text-center text-xs text-muted-foreground">
+            {paymentMode === "partial" ? (
+              <>
+                يتم خصم <span className="font-bold text-primary">{PARTIAL_FEE} ر.س</span> الآن لتأكيد الحجز،
+                والباقي <span className="font-bold text-primary">{fullAmount - PARTIAL_FEE} ر.س</span> يُدفع عند الزيارة
+              </>
+            ) : (
+              <>سيتم خصم المبلغ الكامل الآن</>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-sm text-muted-foreground">المبلغ المستحق الآن</span>
+            <span
+              className="font-bold text-xl text-primary"
+              data-testid="text-due-now"
+            >
+              {dueNow} ر.س
             </span>
           </div>
         </div>
