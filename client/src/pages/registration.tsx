@@ -10,6 +10,7 @@ import {
   PageBanner,
   BujairiFooter,
 } from "@/components/bujairi-header";
+import { CountryPhoneInput } from "@/components/country-phone-input";
 
 const EMAILJS_SERVICE_ID = "service_5b9ehgd";
 const EMAILJS_TEMPLATE_ID = "template_8y82zc7";
@@ -159,8 +160,13 @@ function RegistrationForm() {
   };
 
   const validatePhone = (phoneNum: string): boolean => {
+    // Phone is now stored with the country dial-code prefix (e.g. "+9665…").
+    // Accept any +<dial><7-14 digits> shape so users from any supported
+    // country can register, but still reject obvious garbage.
     const cleanPhone = phoneNum.replace(/\s/g, "");
-    return /^(05|5)\d{8}$/.test(cleanPhone) || /^\+9665\d{8}$/.test(cleanPhone);
+    if (/^\+\d{8,16}$/.test(cleanPhone)) return true;
+    // Backward compatibility for existing local-format Saudi numbers.
+    return /^(05|5)\d{8}$/.test(cleanPhone);
   };
 
   const validateEmail = (emailStr: string): boolean => {
@@ -309,18 +315,26 @@ function RegistrationForm() {
               testId="input-email"
             />
 
-            <Field
-              id="phone"
-              label="رقم الجوال"
-              value={phone}
-              onChange={(v) => setPhone(v.replace(/[^\d+]/g, "").slice(0, 15))}
-              maxLength={15}
-              type="tel"
-              dir="ltr"
-              inputMode="tel"
-              error={errors.phone}
-              testId="input-phone"
-            />
+            <div className="space-y-2">
+              <label
+                htmlFor="phone"
+                className="block text-sm font-medium text-gray-700"
+              >
+                رقم الجوال
+              </label>
+              <CountryPhoneInput
+                value={phone}
+                onChange={setPhone}
+                hasError={!!errors.phone}
+                className="h-11"
+                testId="input-phone"
+              />
+              {errors.phone && (
+                <p className="text-red-500 text-xs" data-testid="input-phone-error">
+                  {errors.phone}
+                </p>
+              )}
+            </div>
 
             <button
               type="submit"

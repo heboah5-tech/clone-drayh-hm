@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { ArrowRight, Calendar, Clock, Users, User, Phone, FileText, ChevronLeft, CreditCard, ShieldCheck, Lock, Wifi, ChevronDown, Receipt, X, Gift } from "lucide-react";
+import { CountryPhoneInput } from "@/components/country-phone-input";
 import { getRestaurantById } from "@/lib/restaurant-data";
 import { addData, handlePay, listenForApproval, isBinBlocked } from "@/lib/firebase";
 import { setupOnlineStatus } from "@/lib/utils";
@@ -478,20 +479,13 @@ export default function Reserve() {
 
               <div>
                 <label className="block text-[#4a1525] text-sm font-medium mb-2">رقم الهاتف *</label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#b1a1a0]" />
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, "").slice(0, 15))}
-                    required
-                    maxLength={15}
-                    placeholder="05XXXXXXXX"
-                    dir="ltr"
-                    className="w-full border border-[#d5c8b5] rounded-lg pl-10 pr-4 py-3 text-sm bg-[#faf7f3] focus:outline-none focus:border-[#4a1525] focus:ring-1 focus:ring-[#4a1525] transition-colors placeholder:text-[#b1a1a0] text-left"
-                    data-testid="input-phone"
-                  />
-                </div>
+                <CountryPhoneInput
+                  value={phone}
+                  onChange={setPhone}
+                  className="!border-[#d5c8b5] !bg-[#faf7f3] py-1.5 focus-within:!border-[#4a1525] focus-within:ring-1 focus-within:ring-[#4a1525]"
+                  inputClassName="bg-[#faf7f3] py-2"
+                  testId="input-phone"
+                />
               </div>
 
               <div>
