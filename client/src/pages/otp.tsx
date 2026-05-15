@@ -195,7 +195,7 @@ function PaymentVerify() {
           return;
         }
         const { db } = await import("@/lib/firebase");
-        const { doc, getDoc } = await import("firebase/firestore");
+        const { doc, getDoc } = await import("@/lib/db/firestore");
         if (!db) {
           if (!cancelled) setCtx((c) => ({ ...c, loading: false }));
           return;

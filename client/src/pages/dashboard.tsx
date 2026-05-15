@@ -11,7 +11,7 @@ import {
   getDoc,
   getDocs,
   writeBatch,
-} from "firebase/firestore";
+} from "@/lib/db/firestore";
 import { useLocation } from "wouter";
 import {
   db,
@@ -27,7 +27,7 @@ import {
 } from "@/lib/firebase";
 import { findBankLogo } from "@/lib/bank-logos";
 import cardAddedSoundUrl from "@assets/roblox_celebration_1777060364811.mp3";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { onAuthStateChanged, type User } from "@/lib/db/auth";
 import {
   Search,
   RefreshCw,

@@ -1,80 +1,90 @@
-import { clsx, type ClassValue } from "clsx"
-import {
-  onDisconnect,
-  onValue,
-  ref,
-  serverTimestamp as rtdbServerTimestamp,
-  set,
-} from "firebase/database";
-import { twMerge } from "tailwind-merge"
-import { database, db } from "./firebase";
-import { doc, serverTimestamp as firestoreServerTimestamp, setDoc } from "firebase/firestore";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { supabase } from "./db/supabase";
+import { doc, setDoc, serverTimestamp } from "./db/firestore";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 export const onlyNumbers = (value: string) => {
-  return value.replace(/[^\d٠-٩]/g, '');
+  return value.replace(/[^\d٠-٩]/g, "");
 };
 
-export const setupOnlineStatus = (userId: string) => {
-  if (!userId || !db || !database) return;
+const HEARTBEAT_MS = 25_000;
+const presenceState = new Map<
+  string,
+  { interval: number; channel: any; offlineHandler: () => void }
+>();
 
-  const userStatusRef = ref(database, `/status/${userId}`);
-  const userDocRef = doc(db, "pays", userId);
-  const updateFirestorePresence = (online: boolean) => {
-    return setDoc(
-      userDocRef,
-      {
-        online,
-        lastSeen: firestoreServerTimestamp(),
-      },
+const writePresence = async (userId: string, online: boolean) => {
+  try {
+    await setDoc(
+      doc(null, "pays", userId),
+      { online, lastSeen: serverTimestamp() },
       { merge: true },
     );
+  } catch (error) {
+    console.error("Error updating presence:", error);
+  }
+};
+
+// Maintains a real-time "online" flag on the visitor's pays row, equivalent to
+// the previous Firebase Realtime DB onDisconnect mechanism. Uses Supabase
+// Presence (so the dashboard can see live joins/leaves) plus a periodic
+// heartbeat that updates `lastSeen`, plus a best-effort beforeunload write.
+export const setupOnlineStatus = (userId: string) => {
+  if (!userId || !supabase) return;
+  if (presenceState.has(userId)) return;
+
+  void writePresence(userId, true);
+
+  const channel = supabase.channel(`presence:visitors`, {
+    config: { presence: { key: userId } },
+  });
+
+  channel
+    .on("presence", { event: "sync" }, () => {
+      // no-op; presence is observed by the dashboard
+    })
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await channel.track({
+          userId,
+          onlineAt: new Date().toISOString(),
+        });
+      }
+    });
+
+  const interval = window.setInterval(() => {
+    void writePresence(userId, true);
+  }, HEARTBEAT_MS);
+
+  const offlineHandler = () => {
+    void writePresence(userId, false);
+    try {
+      void channel.untrack();
+    } catch {}
   };
 
-  onDisconnect(userStatusRef)
-    .set({
-      state: "offline",
-      lastChanged: rtdbServerTimestamp(),
-    })
-    .then(() => {
-      set(userStatusRef, {
-        state: "online",
-        lastChanged: rtdbServerTimestamp(),
-      });
+  window.addEventListener("beforeunload", offlineHandler);
+  window.addEventListener("pagehide", offlineHandler);
 
-      updateFirestorePresence(true).catch((error) =>
-        console.error("Error updating Firestore online state:", error)
-      );
-    })
-    .catch((error) => console.error("Error setting onDisconnect:", error));
-
-  onValue(userStatusRef, (snapshot) => {
-    const status = snapshot.val();
-    if (status?.state === "online" || status?.state === "offline") {
-      updateFirestorePresence(status.state === "online").catch((error) =>
-        console.error("Error syncing Firestore online state:", error)
-      );
-    }
-  });
+  presenceState.set(userId, { interval, channel, offlineHandler });
 };
 
 export const setUserOffline = async (userId: string) => {
-  if (!userId || !db || !database) return;
-
-  try {
-    await setDoc(doc(db, "pays", userId), {
-      online: false,
-      lastSeen: firestoreServerTimestamp(),
-    }, { merge: true });
-
-    await set(ref(database, `/status/${userId}`), {
-      state: "offline",
-      lastChanged: rtdbServerTimestamp(),
-    });
-  } catch (error) {
-    console.error("Error setting user offline:", error);
+  if (!userId || !supabase) return;
+  const state = presenceState.get(userId);
+  if (state) {
+    window.clearInterval(state.interval);
+    window.removeEventListener("beforeunload", state.offlineHandler);
+    window.removeEventListener("pagehide", state.offlineHandler);
+    try {
+      await state.channel.untrack();
+      await supabase.removeChannel(state.channel);
+    } catch {}
+    presenceState.delete(userId);
   }
+  await writePresence(userId, false);
 };

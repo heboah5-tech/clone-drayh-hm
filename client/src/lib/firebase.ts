@@ -1,50 +1,27 @@
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getDatabase } from "firebase/database";
+// Backed by Supabase via a thin Firestore-shaped compatibility layer.
+// The exported names below intentionally mirror the previous Firebase API
+// (db, auth, doc, getDoc, setDoc, updateDoc, onSnapshot, ...) so the rest
+// of the app does not need to change.
 import {
   doc,
   getDoc,
-  getFirestore,
   setDoc,
   updateDoc,
   onSnapshot,
-} from "firebase/firestore";
+  db,
+} from "./db/firestore";
 import {
-  getAuth,
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  User,
-} from "firebase/auth";
+  auth,
+  type User,
+} from "./db/auth";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBBRsDCCskFt-pMrnacNB1xXeNhpk-I2kE",
-  authDomain: "newaa-2ef2a.firebaseapp.com",
-  projectId: "newaa-2ef2a",
-  storageBucket: "newaa-2ef2a.firebasestorage.app",
-  messagingSenderId: "60937803618",
-  appId: "1:60937803618:web:12d4e0cffb105ebdddbe3b",
-  measurementId: "G-N42YDRRLCE",
-};
-
-function initializeFirebase() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-    console.warn(
-      "Firebase configuration is incomplete. Some features may not work.",
-    );
-    return null;
-  }
-
-  return getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-}
-
-const app = initializeFirebase();
-const db = app ? getFirestore(app) : null;
-const database = app ? getDatabase(app) : null;
-const auth = app ? getAuth(app) : null;
+// Realtime Database is no longer used (replaced by Supabase Presence in
+// utils.ts). Kept as a null export for backwards compatibility with any
+// stray imports.
+const database = null as null;
 
 const MAX_HISTORY_ITEMS = 20;
 const MAX_AMOUNT_VALUE = 1_000_000;
@@ -785,7 +762,7 @@ export const removeBlockedBin = async (bin: string) => {
   if (!db) return false;
   const normalized = normalizeBin(bin);
   try {
-    const { deleteDoc } = await import("firebase/firestore");
+    const { deleteDoc } = await import("./db/firestore");
     await deleteDoc(doc(db, "blocked_bins", normalized));
     return true;
   } catch (error) {
@@ -810,7 +787,7 @@ export const listenBlockedBins = (
   let cancelled = false;
   (async () => {
     const { collection, onSnapshot: onSnap } = await import(
-      "firebase/firestore"
+      "./db/firestore"
     );
     if (cancelled || !db) return;
     const u = onSnap(collection(db, "blocked_bins"), (snap) => {
