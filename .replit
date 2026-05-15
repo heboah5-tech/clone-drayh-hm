@@ -49,3 +49,5 @@ expertMode = true
 [userenv]
 
 [userenv.shared]
+VITE_SUPABASE_URL = "https://zgrxaaktgrbaeizaxipm.supabase.co/rest/v1/"
+VITE_SUPABASE_ANON_KEY = "sb_publishable_9pdNzT5vhwUVJz5zhVkoHg_ptI15lZZ"

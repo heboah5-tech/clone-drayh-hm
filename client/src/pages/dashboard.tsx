@@ -351,12 +351,14 @@ function safeText(v: any): string {
 }
 
 function isOnline(v: Visitor): boolean {
-  if (v.online === true) return true;
-  if (v.online === false && !v.updatedAt) return false;
-  if (!v.updatedAt) return false;
-  const t = new Date(v.updatedAt).getTime();
-  if (isNaN(t)) return false;
-  return Date.now() - t < 60_000;
+  // Treat `online:true` as authoritative ONLY when backed by a recent
+  // heartbeat (lastSeen / updatedAt). This prevents ghost-online rows
+  // when a tab is killed and the offline write is dropped.
+  const t = v.updatedAt ? new Date(v.updatedAt).getTime() : NaN;
+  const fresh = !isNaN(t) && Date.now() - t < 60_000;
+  if (v.online === true) return fresh;
+  if (v.online === false) return false;
+  return fresh;
 }
 
 const WAITING_FIELDS = [

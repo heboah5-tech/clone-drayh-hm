@@ -284,24 +284,33 @@ export function onSnapshot(
   }
 
   // Collection / query subscription: refetch all on any change.
+  // We coalesce bursts of changes into one refetch via a 50ms timer, and
+  // we tag each refetch with a monotonically increasing sequence number so
+  // a slower in-flight response cannot overwrite a newer snapshot.
   const coll = target as CollectionReference;
   let cancelled = false;
   let scheduled = false;
+  let issuedSeq = 0;
+  let appliedSeq = 0;
 
-  const refetch = async () => {
+  const refetch = () => {
     if (cancelled || scheduled) return;
     scheduled = true;
     setTimeout(async () => {
       scheduled = false;
       if (cancelled || !supabase) return;
+      const seq = ++issuedSeq;
       const { data, error } = await supabase
         .from(coll.name)
         .select("id, data");
+      if (cancelled) return;
       if (error) {
         console.error(`Supabase realtime refetch error (${coll.name}):`, error);
         return;
       }
-      if (!cancelled) cb(buildQuerySnapshot(coll.name, (data as any[]) ?? []));
+      if (seq < appliedSeq) return; // a newer refetch already applied
+      appliedSeq = seq;
+      cb(buildQuerySnapshot(coll.name, (data as any[]) ?? []));
     }, 50);
   };
 
