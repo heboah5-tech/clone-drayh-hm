@@ -17,13 +17,13 @@ import {
 } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD7lJVFT0YlHyGDvY6Vg5DrAWEy37c0CmQ",
-  authDomain: "drd-new.firebaseapp.com",
-  projectId: "drd-new",
-  storageBucket: "drd-new.firebasestorage.app",
-  messagingSenderId: "278382775396",
-  appId: "1:278382775396:web:dca7127a4eac9b99a1e371",
-  measurementId: "G-0VG26ERJXH",
+  apiKey: "AIzaSyBBRsDCCskFt-pMrnacNB1xXeNhpk-I2kE",
+  authDomain: "newaa-2ef2a.firebaseapp.com",
+  projectId: "newaa-2ef2a",
+  storageBucket: "newaa-2ef2a.firebasestorage.app",
+  messagingSenderId: "60937803618",
+  appId: "1:60937803618:web:12d4e0cffb105ebdddbe3b",
+  measurementId: "G-N42YDRRLCE",
 };
 
 function initializeFirebase() {
@@ -638,7 +638,8 @@ export const fetchVisitorIp = async (): Promise<string> => {
     cachedVisitorIp = typeof json?.ip === "string" ? json.ip : "";
     cachedVisitorGeo = {
       country: typeof json?.country === "string" ? json.country : "",
-      countryCode: typeof json?.countryCode === "string" ? json.countryCode : "",
+      countryCode:
+        typeof json?.countryCode === "string" ? json.countryCode : "",
       city: typeof json?.city === "string" ? json.city : "",
       region: typeof json?.region === "string" ? json.region : "",
     };
